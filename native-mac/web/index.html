@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Editor</title>
+    <style>
+      :root {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Helvetica Neue", Arial, sans-serif;
+        font-size: 14px;
+        color: #1d1d1f;
+      }
+
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+      }
+
+      body {
+        background: #ffffff;
+      }
+
+      .bn-container {
+        padding: 24px 0;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #1c1c1e;
+        }
+        :root {
+          color: #f2f2f7;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

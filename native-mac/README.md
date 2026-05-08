@@ -1,0 +1,98 @@
+# Marktext Next — native-mac
+
+Swift + SwiftUI hybrid build of Marktext Next, targeting **macOS 26+** with
+real Liquid Glass UI and the App Store as a distribution target.
+
+The editor itself (BlockNote / ProseMirror) still runs inside a `WKWebView`,
+but everything else — sidebar, toolbar, menu bar, settings, file ops — is
+fully native SwiftUI / AppKit using only public APIs.
+
+## Architecture
+
+```
+native-mac/
+├── project.yml            # XcodeGen config — regenerate the .xcodeproj from this
+├── Sources/MarktextNext/
+│   ├── MarktextNextApp.swift   # @main App scene + commands + Settings
+│   ├── ContentView.swift       # NavigationSplitView root
+│   ├── SidebarView.swift       # File tree (OutlineGroup)
+│   ├── EditorWebView.swift     # WKWebView host + JS bridge
+│   ├── DocumentStore.swift     # File state, dirty tracking, auto-save
+│   ├── Settings.swift          # Settings scene (auto-save, theme)
+│   ├── RecentFiles.swift       # UserDefaults-backed recents
+│   ├── WindowAccessor.swift    # NSWindow delegate for close-confirm
+│   └── MarktextNext.entitlements  # App Sandbox + user-selected files
+├── Resources/editor/      # Vite build output (gitignored — regenerate from web/)
+└── web/                   # Minimal React + BlockNote sub-project
+    ├── src/
+    │   ├── main.tsx
+    │   └── EmbeddedEditor.tsx  # BlockNote + window.editorBridge / postMessage
+    └── vite.config.ts          # outDir: ../Resources/editor
+```
+
+## Build from clean clone
+
+```bash
+# Install web deps + build the embedded editor into Resources/editor/
+cd web
+pnpm install
+pnpm build
+cd ..
+
+# Generate Xcode project from project.yml
+xcodegen generate
+
+# Build .app
+xcodebuild \
+  -project MarktextNext.xcodeproj \
+  -scheme MarktextNext \
+  -configuration Release \
+  -derivedDataPath build \
+  CODE_SIGN_IDENTITY="-" \
+  CODE_SIGNING_REQUIRED=NO \
+  build
+
+# Launch
+open "build/Build/Products/Release/Marktext Next.app"
+```
+
+## Iterate on the editor only
+
+Editor changes don’t need a Swift rebuild — re-running the web build
+copies updated files straight into the .app the next time xcodebuild
+picks up the resources phase:
+
+```bash
+cd web && pnpm build && cd ..
+xcodebuild ... build
+```
+
+## JS ↔ Swift bridge
+
+**Swift → JS**: `webView.evaluateJavaScript("window.editorBridge.loadMarkdown(...)")`
+to swap the editor’s document. Triggered from `DocumentStore.loadFile`, etc.
+
+**JS → Swift**: `window.webkit.messageHandlers.editor.postMessage({...})` from
+the embedded React app. Two messages:
+
+- `{ type: "ready" }` — editor mounted; coordinator flushes any pending markdown
+- `{ type: "change", markdown }` — debounced auto-save logic listens here
+
+## Distribution checklist (before App Store submission)
+
+- [ ] Replace placeholder app icon with real artwork (need 1024×1024 PNG)
+- [ ] Set `DEVELOPMENT_TEAM` in `project.yml` to your Apple Developer Team ID
+- [ ] Switch `CODE_SIGN_STYLE` to `Automatic` and let Xcode manage profiles
+- [ ] Notarize and validate via `xcodebuild archive` + `xcrun altool` / `notarytool`
+- [ ] Fill in App Store Connect metadata, screenshots, privacy declarations
+- [ ] (Optional) Add security-scoped bookmarks so picked folders persist across launches
+
+## Deferred features (future work)
+
+- KaTeX math blocks (custom BlockNote schema, ~100 lines)
+- Mermaid diagram blocks (same pattern, heavier dep)
+- Auto-watch file tree for external changes
+- Multi-window / multi-tab
+- Find & Replace across the document
+- Search across folder
+- Folder picker persistence via security-scoped bookmarks

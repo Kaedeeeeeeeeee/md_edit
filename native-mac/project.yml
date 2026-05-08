@@ -1,0 +1,40 @@
+name: MarktextNext
+options:
+  bundleIdPrefix: com.marktext.next
+  deploymentTarget:
+    macOS: "26.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  MarktextNext:
+    type: application
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Sources/MarktextNext
+      - path: Resources/editor
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: "Marktext Next"
+        PRODUCT_BUNDLE_IDENTIFIER: com.marktext.next.app
+        ENABLE_PREVIEWS: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "Marktext Next"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        INFOPLIST_KEY_LSMinimumSystemVersion: "26.0"
+        CODE_SIGN_ENTITLEMENTS: Sources/MarktextNext/MarktextNext.entitlements
+        ENABLE_APP_SANDBOX: YES
