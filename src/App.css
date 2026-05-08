@@ -1,10 +1,9 @@
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "Helvetica Neue", Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.55;
-  color: #1f2328;
-  background-color: #ffffff;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1d1d1f;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -15,6 +14,7 @@ body,
   height: 100%;
   margin: 0;
   padding: 0;
+  background: transparent;
 }
 
 .app {
@@ -23,17 +23,17 @@ body,
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  background: transparent;
 }
 
-/* ---------- Sidebar ---------- */
+/* ---------- Sidebar (sits on real NSVisualEffectMaterial::Sidebar) ---------- */
 
 .sidebar {
   display: flex;
   flex-direction: column;
   width: 240px;
   flex-shrink: 0;
-  background: #f5f5f7;
-  border-right: 1px solid #e5e7eb;
+  background: transparent;
   user-select: none;
   overflow: hidden;
 }
@@ -42,17 +42,16 @@ body,
   display: flex;
   align-items: center;
   height: 38px;
-  padding: 0 8px 0 84px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 0 8px 0 84px; /* leave room for traffic-light buttons */
   -webkit-app-region: drag;
   flex-shrink: 0;
 }
 
 .sidebar-title {
   flex: 1;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: #6b7280;
+  color: rgba(60, 60, 67, 0.6);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   overflow: hidden;
@@ -62,31 +61,38 @@ body,
 
 .sidebar-action {
   -webkit-app-region: no-drag;
-  width: 24px;
-  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   border: none;
   background: transparent;
   border-radius: 4px;
-  font-size: 16px;
-  color: #6b7280;
+  color: rgba(60, 60, 67, 0.6);
   cursor: pointer;
+  padding: 0;
 }
 
 .sidebar-action:hover {
   background: rgba(0, 0, 0, 0.06);
-  color: #1f2328;
+  color: #1d1d1f;
+}
+
+.sidebar-action:active {
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .sidebar-body {
   flex: 1;
   overflow-y: auto;
-  padding: 6px 0;
+  padding: 4px 0 12px;
 }
 
 .sidebar-empty {
   padding: 24px 16px;
-  font-size: 13px;
-  color: #6b7280;
+  font-size: 12px;
+  color: rgba(60, 60, 67, 0.6);
   text-align: center;
 }
 
@@ -96,15 +102,16 @@ body,
 
 .sidebar-empty button {
   font: inherit;
+  font-size: 12px;
   padding: 4px 12px;
   border-radius: 6px;
-  border: 1px solid #d0d7de;
-  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.6);
   cursor: pointer;
 }
 
 .sidebar-empty button:hover {
-  background: #f3f4f6;
+  background: rgba(255, 255, 255, 0.85);
 }
 
 /* ---------- File tree ---------- */
@@ -112,25 +119,27 @@ body,
 .tree {
   display: flex;
   flex-direction: column;
+  padding: 0 6px;
 }
 
 .tree-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
+  height: 24px;
   padding: 0 8px;
   border: none;
   background: transparent;
   font: inherit;
   font-size: 13px;
-  color: #1f2328;
+  color: #1d1d1f;
   text-align: left;
   cursor: pointer;
-  border-radius: 4px;
-  margin: 0 6px;
+  border-radius: 5px;
   white-space: nowrap;
   overflow: hidden;
+  width: 100%;
+  transition: background-color 60ms;
 }
 
 .tree-row:hover {
@@ -138,26 +147,51 @@ body,
 }
 
 .tree-row.is-active {
-  background: rgba(10, 132, 255, 0.18);
-  color: #0a84ff;
-  font-weight: 500;
+  background: #0a84ff;
+  color: #ffffff;
+}
+
+.tree-row.is-active .tree-icon {
+  color: #ffffff;
 }
 
 .tree-chev {
   width: 10px;
-  font-size: 9px;
-  color: #8b949e;
+  height: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(60, 60, 67, 0.55);
   flex-shrink: 0;
 }
 
+.tree-row.is-active .tree-chev {
+  color: rgba(255, 255, 255, 0.9);
+}
+
 .tree-icon {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+}
+
+.tree-icon-folder {
+  color: #0a84ff;
+}
+
+.tree-icon-file {
+  color: rgba(60, 60, 67, 0.55);
 }
 
 .tree-name {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+}
+
+.tree-row.is-active .tree-name {
+  font-weight: 500;
 }
 
 /* ---------- Main pane ---------- */
@@ -175,8 +209,10 @@ body,
   gap: 8px;
   height: 38px;
   padding: 0 16px;
-  background: #fafafa;
-  border-bottom: 1px solid #e5e7eb;
+  background: rgba(246, 246, 247, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   -webkit-app-region: drag;
   flex-shrink: 0;
 }
@@ -188,25 +224,28 @@ body,
 
 .icon-button {
   -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 24px;
   border: none;
   background: transparent;
   border-radius: 4px;
-  font-size: 14px;
-  color: #6b7280;
+  color: rgba(60, 60, 67, 0.7);
   cursor: pointer;
+  padding: 0;
 }
 
 .icon-button:hover {
   background: rgba(0, 0, 0, 0.06);
-  color: #1f2328;
+  color: #1d1d1f;
 }
 
 .file-label {
   -webkit-app-region: no-drag;
   font-size: 13px;
-  color: #1f2328;
+  color: #1d1d1f;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -228,48 +267,38 @@ body,
 
 @media (prefers-color-scheme: dark) {
   :root {
-    color: #e6edf3;
-    background-color: #1c1c1e;
-  }
-
-  .sidebar {
-    background: #2c2c2e;
-    border-right-color: #3a3a3c;
-  }
-
-  .sidebar-header {
-    border-bottom-color: #3a3a3c;
+    color: #f2f2f7;
   }
 
   .sidebar-title {
-    color: #8e8e93;
+    color: rgba(235, 235, 245, 0.6);
   }
 
   .sidebar-action {
-    color: #8e8e93;
+    color: rgba(235, 235, 245, 0.6);
   }
 
   .sidebar-action:hover {
     background: rgba(255, 255, 255, 0.08);
-    color: #e6edf3;
+    color: #ffffff;
   }
 
   .sidebar-empty {
-    color: #8e8e93;
+    color: rgba(235, 235, 245, 0.6);
   }
 
   .sidebar-empty button {
-    background: #3a3a3c;
-    border-color: #48484a;
-    color: #e6edf3;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #f2f2f7;
   }
 
   .sidebar-empty button:hover {
-    background: #48484a;
+    background: rgba(255, 255, 255, 0.12);
   }
 
   .tree-row {
-    color: #e6edf3;
+    color: #f2f2f7;
   }
 
   .tree-row:hover {
@@ -277,26 +306,38 @@ body,
   }
 
   .tree-row.is-active {
-    background: rgba(10, 132, 255, 0.28);
+    background: #0a84ff;
     color: #ffffff;
   }
 
+  .tree-chev {
+    color: rgba(235, 235, 245, 0.5);
+  }
+
+  .tree-icon-folder {
+    color: #0a84ff;
+  }
+
+  .tree-icon-file {
+    color: rgba(235, 235, 245, 0.55);
+  }
+
   .toolbar {
-    background: #2c2c2e;
-    border-bottom-color: #3a3a3c;
+    background: rgba(40, 40, 42, 0.6);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
   }
 
   .icon-button {
-    color: #8e8e93;
+    color: rgba(235, 235, 245, 0.7);
   }
 
   .icon-button:hover {
     background: rgba(255, 255, 255, 0.08);
-    color: #e6edf3;
+    color: #ffffff;
   }
 
   .file-label {
-    color: #e6edf3;
+    color: #f2f2f7;
   }
 
   .editor-pane {

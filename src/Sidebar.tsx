@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 import { readDir, type DirEntry } from "@tauri-apps/plugin-fs";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  DocumentIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  PlusIcon,
+} from "./icons";
 
 interface FileNode {
   name: string;
@@ -21,6 +29,10 @@ function isMarkdown(name: string): boolean {
   const dot = name.lastIndexOf(".");
   if (dot < 0) return false;
   return MD_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+}
+
+function stripExtension(name: string): string {
+  return name.replace(/\.(md|markdown|mdown|mkd)$/i, "");
 }
 
 async function buildTree(folderPath: string): Promise<FileNode[]> {
@@ -78,11 +90,15 @@ function NodeRow({ node, depth, activeFilePath, onSelectFile }: NodeRowProps) {
       <div className="tree-node">
         <button
           className="tree-row tree-folder"
-          style={{ paddingLeft: 8 + depth * 14 }}
+          style={{ paddingLeft: 6 + depth * 16 }}
           onClick={() => setExpanded((v) => !v)}
         >
-          <span className="tree-chev">{expanded ? "▾" : "▸"}</span>
-          <span className="tree-icon">📁</span>
+          <span className="tree-chev">
+            {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+          </span>
+          <span className="tree-icon tree-icon-folder">
+            {expanded ? <FolderOpenIcon /> : <FolderIcon />}
+          </span>
           <span className="tree-name">{node.name}</span>
         </button>
         {expanded && node.children && (
@@ -106,12 +122,14 @@ function NodeRow({ node, depth, activeFilePath, onSelectFile }: NodeRowProps) {
   return (
     <button
       className={`tree-row tree-file${isActive ? " is-active" : ""}`}
-      style={{ paddingLeft: 8 + depth * 14 + 14 }}
+      style={{ paddingLeft: 6 + depth * 16 + 14 }}
       onClick={() => onSelectFile(node.path)}
       title={node.path}
     >
-      <span className="tree-icon">📄</span>
-      <span className="tree-name">{node.name.replace(/\.(md|markdown|mdown|mkd)$/i, "")}</span>
+      <span className="tree-icon tree-icon-file">
+        <DocumentIcon />
+      </span>
+      <span className="tree-name">{stripExtension(node.name)}</span>
     </button>
   );
 }
@@ -159,7 +177,7 @@ export function Sidebar({
           onClick={onOpenFolder}
           title="Open folder…"
         >
-          ⊕
+          <PlusIcon />
         </button>
       </div>
       <div className="sidebar-body">
@@ -169,7 +187,9 @@ export function Sidebar({
             <button onClick={onOpenFolder}>Open Folder…</button>
           </div>
         )}
-        {folderPath && loading && <div className="sidebar-empty">Scanning…</div>}
+        {folderPath && loading && (
+          <div className="sidebar-empty">Scanning…</div>
+        )}
         {folderPath && !loading && tree && tree.length === 0 && (
           <div className="sidebar-empty">No markdown files found.</div>
         )}

@@ -10,13 +10,17 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "Marktext Next (Demo)",
+        "title": "Marktext Next",
         "width": 1100,
         "height": 750,
         "minWidth": 700,
-        "minHeight": 500
+        "minHeight": 500,
+        "transparent": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "security": {

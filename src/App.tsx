@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Editor } from "./Editor";
 import { Sidebar } from "./Sidebar";
+import { SidebarIcon } from "./icons";
 import "./App.css";
 
 const WELCOME_MARKDOWN = `# Welcome to Marktext Next
@@ -246,7 +247,7 @@ function App() {
             onClick={handleToggleSidebar}
             title="Toggle Sidebar (⌘\\)"
           >
-            ☰
+            <SidebarIcon />
           </button>
           <span className="file-label" title={filePath ?? "Untitled"}>
             {dirty ? "• " : ""}
