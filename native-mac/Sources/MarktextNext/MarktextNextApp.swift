@@ -9,7 +9,10 @@ struct MarktextNextApp: App {
     @State private var didRestore = false
 
     var body: some Scene {
-        WindowGroup {
+        // `Window` (singleton) rather than `WindowGroup` so macOS state
+        // restoration can't multiply us into several stale windows that all
+        // race to own the editor bridge.
+        Window("Marktext Next", id: "main") {
             ContentView()
                 .environment(store)
                 .frame(minWidth: 800, minHeight: 520)

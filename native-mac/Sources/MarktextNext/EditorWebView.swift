@@ -18,7 +18,7 @@ struct EditorWebView: NSViewRepresentable {
         webView.setValue(false, forKey: "drawsBackground")
 
         context.coordinator.webView = webView
-        context.coordinator.attach(store: store)
+        context.coordinator.store = store
 
         if let htmlURL = Bundle.main.url(
             forResource: "index",
@@ -32,8 +32,17 @@ struct EditorWebView: NSViewRepresentable {
         return webView
     }
 
+    // Pull pattern: SwiftUI re-invokes this whenever any observed property
+    // on `store` changes.  Reading `store.loadEpoch` here registers it as a
+    // dependency; the coordinator then compares against the last dispatched
+    // epoch and only pushes to JS when a fresh load is required (file open,
+    // new document, file delete).  Editor-originated changes don't bump the
+    // epoch so we don't loop.
     func updateNSView(_ nsView: WKWebView, context: Context) {
-        context.coordinator.attach(store: store)
+        context.coordinator.store = store
+        let epoch = store.loadEpoch
+        let markdown = store.currentMarkdown
+        context.coordinator.syncIfNeeded(epoch: epoch, markdown: markdown)
     }
 
     @MainActor
@@ -41,17 +50,16 @@ struct EditorWebView: NSViewRepresentable {
         weak var webView: WKWebView?
         weak var store: DocumentStore?
         private var isReady = false
-        private var pendingMarkdown: String?
+        private var lastDispatchedEpoch: Int = -1
+        private var pending: (epoch: Int, markdown: String)?
 
-        func attach(store: DocumentStore) {
-            self.store = store
-            store.loadIntoEditor = { [weak self] markdown in
-                guard let self else { return }
-                if self.isReady {
-                    self.sendLoad(markdown)
-                } else {
-                    self.pendingMarkdown = markdown
-                }
+        func syncIfNeeded(epoch: Int, markdown: String) {
+            guard epoch != lastDispatchedEpoch else { return }
+            lastDispatchedEpoch = epoch
+            if isReady {
+                sendLoad(markdown)
+            } else {
+                pending = (epoch, markdown)
             }
         }
 
@@ -74,11 +82,15 @@ struct EditorWebView: NSViewRepresentable {
             switch type {
             case "ready":
                 isReady = true
-                if let pending = pendingMarkdown {
-                    pendingMarkdown = nil
-                    sendLoad(pending)
-                } else if let md = store?.currentMarkdown {
-                    sendLoad(md)
+                if let pending {
+                    self.pending = nil
+                    sendLoad(pending.markdown)
+                } else if let store {
+                    // Editor ready but no explicit load has been requested
+                    // yet (epoch 0).  Push the initial document anyway so
+                    // the editor reflects whatever is in the store.
+                    lastDispatchedEpoch = store.loadEpoch
+                    sendLoad(store.currentMarkdown)
                 }
             case "change":
                 if let markdown = dict["markdown"] as? String {
@@ -97,13 +109,16 @@ struct EditorWebView: NSViewRepresentable {
                 options: [.fragmentsAllowed]
             ),
                let str = String(data: data, encoding: .utf8) {
-                let trimmed = String(str.dropFirst().dropLast()) // strip the [...]
-                encoded = trimmed
+                encoded = String(str.dropFirst().dropLast()) // strip outer [...]
             } else {
                 encoded = "\"\""
             }
-            let js = "window.editorBridge && window.editorBridge.loadMarkdown(\(encoded));"
-            webView.evaluateJavaScript(js, completionHandler: nil)
+            let js = "if (window.editorBridge) { window.editorBridge.loadMarkdown(\(encoded)); }"
+            webView.evaluateJavaScript(js) { _, error in
+                if let error {
+                    print("evaluateJavaScript loadMarkdown failed:", error)
+                }
+            }
         }
     }
 }

@@ -20,9 +20,12 @@ final class DocumentStore {
     var isDirty: Bool = false
     var fileTree: [FileNode] = []
 
-    /// Set by `EditorWebView` once mounted. Sends a markdown string into the
-    /// embedded BlockNote editor via JS bridge.
-    var loadIntoEditor: ((String) -> Void)?
+    /// Monotonically increments every time we want the editor to re-pull
+    /// content from the store (file open, new document, current file deleted).
+    /// Editor-originated edits do NOT bump this — that would loop back.
+    /// EditorWebView observes this and pushes `currentMarkdown` into JS when
+    /// it changes.
+    var loadEpoch: Int = 0
 
     private var autoSaveTask: Task<Void, Never>?
     private let folderWatcher = FolderWatcher()
@@ -56,7 +59,7 @@ final class DocumentStore {
         currentFileURL = nil
         currentMarkdown = ""
         isDirty = false
-        loadIntoEditor?("")
+        loadEpoch += 1
     }
 
     func openFileDialog() {
@@ -124,7 +127,7 @@ final class DocumentStore {
             currentFileURL = url
             currentMarkdown = content
             isDirty = false
-            loadIntoEditor?(content)
+            loadEpoch += 1
             RecentFiles.shared.push(url)
         } catch {
             presentAlert("Failed to open file", error.localizedDescription)
@@ -257,7 +260,7 @@ final class DocumentStore {
                 currentFileURL = nil
                 currentMarkdown = ""
                 isDirty = false
-                loadIntoEditor?("")
+                loadEpoch += 1
             }
             rebuildFileTree()
         } catch {
