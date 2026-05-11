@@ -13,6 +13,13 @@ struct EditorWebView: NSViewRepresentable {
         config.userContentController.add(context.coordinator, name: "editor")
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
+        // Serve the bundled editor over a custom scheme so module scripts +
+        // crossorigin attrs (Vite default output) actually load.  file:// would
+        // trip CORS on the very first <script type="module">.
+        let schemeHandler = EditorSchemeHandler()
+        config.setURLSchemeHandler(schemeHandler, forURLScheme: EditorSchemeHandler.scheme)
+        context.coordinator.schemeHandler = schemeHandler
+
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
@@ -20,12 +27,12 @@ struct EditorWebView: NSViewRepresentable {
         context.coordinator.webView = webView
         context.coordinator.store = store
 
-        if let htmlURL = Bundle.main.url(
+        if Bundle.main.url(
             forResource: "index",
             withExtension: "html",
             subdirectory: "editor"
-        ) {
-            webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
+        ) != nil {
+            webView.load(URLRequest(url: EditorSchemeHandler.homeURL))
         } else {
             webView.loadHTMLString(missingBundleHTML, baseURL: nil)
         }
@@ -49,6 +56,9 @@ struct EditorWebView: NSViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         weak var webView: WKWebView?
         weak var store: DocumentStore?
+        /// WKWebViewConfiguration does NOT retain its scheme handlers, so we
+        /// keep one alive here for the lifetime of the coordinator.
+        var schemeHandler: EditorSchemeHandler?
         private var isReady = false
         private var lastDispatchedEpoch: Int = -1
         private var pending: (epoch: Int, markdown: String)?
