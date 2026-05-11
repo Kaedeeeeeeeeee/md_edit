@@ -5,13 +5,24 @@ struct MarktextNextApp: App {
     @State private var store = DocumentStore()
     @State private var closeGuard: CloseGuard?
     @State private var recentURLs: [URL] = RecentFiles.shared.urls
-    @State private var recentFolders: [(url: URL, displayName: String)] = WorkspaceBookmark.recentWorkspaces()
-    @State private var didRestore = false
+    @State private var recentFolders: [(url: URL, displayName: String)] =
+        WorkspaceBookmark.recentWorkspaces()
 
     var body: some Scene {
-        // `Window` (singleton) rather than `WindowGroup` so macOS state
-        // restoration can't multiply us into several stale windows that all
-        // race to own the editor bridge.
+        // Launch-time workspace picker (VS Code-style).  Shown by default;
+        // the main editor scene is suppressed until the picker chooses a
+        // workspace and explicitly opens it.
+        Window("Open Workspace", id: "picker") {
+            WorkspacePicker()
+                .environment(store)
+        }
+        .defaultLaunchBehavior(.presented)
+        .windowResizability(.contentSize)
+        .windowStyle(.titleBar)
+
+        // Main editor window.  Singleton (so state restoration can't
+        // multiply it into stale duplicates that race to own the WebView
+        // bridge).  Opened by the picker via `openWindow(id: "main")`.
         Window("Marktext Next", id: "main") {
             ContentView()
                 .environment(store)
@@ -25,13 +36,6 @@ struct MarktextNextApp: App {
                         }
                     }
                 )
-                .onAppear {
-                    if !didRestore {
-                        didRestore = true
-                        store.restoreSavedWorkspaceIfAvailable()
-                        recentFolders = WorkspaceBookmark.recentWorkspaces()
-                    }
-                }
                 .onChange(of: store.currentFileURL) { _, _ in
                     recentURLs = RecentFiles.shared.urls
                 }
@@ -39,6 +43,7 @@ struct MarktextNextApp: App {
                     recentFolders = WorkspaceBookmark.recentWorkspaces()
                 }
         }
+        .defaultLaunchBehavior(.suppressed)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
         .commands {
@@ -48,11 +53,13 @@ struct MarktextNextApp: App {
 
                 Divider()
 
-                Button("Open File…") { store.openFileDialog() }
+                Button("Open Folder…") { store.openFolderDialog() }
                     .keyboardShortcut("o")
 
-                Button("Open Folder…") { store.openFolderDialog() }
+                Button("Open File…") { store.openFileDialog() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
+
+                SwitchWorkspaceMenuItem()
 
                 Menu("Open Recent Folder") {
                     if recentFolders.isEmpty {
@@ -110,5 +117,19 @@ struct MarktextNextApp: App {
         Settings {
             SettingsView()
         }
+    }
+}
+
+/// Tiny wrapper view so the "Switch Workspace…" menu item can pull
+/// `openWindow` out of the environment — Scene-level `.commands` builders
+/// don't see view environment values directly.
+private struct SwitchWorkspaceMenuItem: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Switch Workspace…") {
+            openWindow(id: "picker")
+        }
+        .keyboardShortcut("o", modifiers: [.command, .option])
     }
 }
