@@ -15,6 +15,7 @@ struct MarktextNextApp: App {
         Window("Open Workspace", id: "picker") {
             WorkspacePicker()
                 .environment(store)
+                .modifier(OpenURLForwarder())
         }
         .defaultLaunchBehavior(.presented)
         .windowResizability(.contentSize)
@@ -42,8 +43,10 @@ struct MarktextNextApp: App {
                 .onChange(of: store.folderURL) { _, _ in
                     recentFolders = WorkspaceBookmark.recentWorkspaces()
                 }
+                .modifier(OpenURLForwarder())
         }
         .defaultLaunchBehavior(.suppressed)
+        .handlesExternalEvents(matching: ["*"])
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
         .commands {
@@ -131,5 +134,27 @@ private struct SwitchWorkspaceMenuItem: View {
             openWindow(id: "picker")
         }
         .keyboardShortcut("o", modifiers: [.command, .option])
+    }
+}
+
+/// Routes a file URL delivered to the scene (from Finder "Open With", a
+/// double-click on a `.md`, or a drop on the dock icon) into the shared
+/// `DocumentStore`, opens the main editor window, and dismisses the picker
+/// if it was still up.  Attached to both the picker and main scenes so
+/// the URL gets handled regardless of which is foremost when it arrives.
+private struct OpenURLForwarder: ViewModifier {
+    @Environment(DocumentStore.self) private var store
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
+
+    func body(content: Content) -> some View {
+        content.onOpenURL { url in
+            // Ensure sandbox grants access for the duration of the read.
+            let needsScope = url.startAccessingSecurityScopedResource()
+            defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
+            store.loadFile(url)
+            openWindow(id: "main")
+            dismissWindow(id: "picker")
+        }
     }
 }

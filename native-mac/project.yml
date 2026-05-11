@@ -25,16 +25,48 @@ targets:
         type: folder
         buildPhase: resources
       - path: Assets.xcassets
+    info:
+      path: Sources/MarktextNext/Info.plist
+      properties:
+        CFBundleDisplayName: "Marktext Next"
+        CFBundleName: "Marktext Next"
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        CFBundleIdentifier: com.marktext.next.app
+        LSApplicationCategoryType: public.app-category.productivity
+        LSMinimumSystemVersion: "26.0"
+        NSPrincipalClass: NSApplication
+        NSHumanReadableCopyright: ""
+        # Declare we can open Markdown / plain-text files so Finder lists
+        # us under "Open With" and double-clicking a .md routes the URL to
+        # this app.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: "Markdown Document"
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - net.daringfireball.markdown
+              - public.plain-text
+        # Import the de-facto markdown UTI so the system knows .md / .markdown
+        # files map to net.daringfireball.markdown (and that it conforms to
+        # plain text).
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: net.daringfireball.markdown
+            UTTypeDescription: "Markdown Document"
+            UTTypeConformsTo:
+              - public.plain-text
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - md
+                - markdown
+                - mdown
+                - mkd
+              public.mime-type:
+                - text/markdown
     settings:
       base:
         PRODUCT_NAME: "Marktext Next"
         PRODUCT_BUNDLE_IDENTIFIER: com.marktext.next.app
         ENABLE_PREVIEWS: YES
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: "Marktext Next"
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
-        INFOPLIST_KEY_NSHumanReadableCopyright: ""
-        INFOPLIST_KEY_NSPrincipalClass: NSApplication
-        INFOPLIST_KEY_LSMinimumSystemVersion: "26.0"
         CODE_SIGN_ENTITLEMENTS: Sources/MarktextNext/MarktextNext.entitlements
         ENABLE_APP_SANDBOX: YES
