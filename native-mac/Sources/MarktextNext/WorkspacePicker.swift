@@ -13,7 +13,6 @@ struct WorkspacePicker: View {
     @AppStorage("showPickerOnLaunch") private var showOnLaunch = true
 
     @State private var entries: [WorkspaceEntry] = []
-    @State private var selectedID: String?
     @State private var didAutoSkip = false
 
     var body: some View {
@@ -112,14 +111,7 @@ struct WorkspacePicker: View {
             ScrollView {
                 LazyVStack(spacing: 2) {
                     ForEach(entries) { entry in
-                        RecentRow(
-                            entry: entry,
-                            isSelected: selectedID == entry.id,
-                            onTap: { open(entry) },
-                            onHover: { hovering in
-                                if hovering { selectedID = entry.id }
-                            }
-                        )
+                        RecentRow(entry: entry) { open(entry) }
                     }
                 }
                 .padding(.vertical, 10)
@@ -136,7 +128,6 @@ struct WorkspacePicker: View {
 
     private func setup() {
         reload()
-        selectedID = entries.first?.id
         if !didAutoSkip, !showOnLaunch, let first = entries.first {
             didAutoSkip = true
             open(first)
@@ -255,9 +246,8 @@ private struct PillAction: View {
 
 private struct RecentRow: View {
     let entry: WorkspaceEntry
-    let isSelected: Bool
     let onTap: () -> Void
-    let onHover: (Bool) -> Void
+    @State private var hovering = false
 
     var body: some View {
         Button(action: onTap) {
@@ -296,14 +286,14 @@ private struct RecentRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(isSelected
+                    .fill(hovering
                         ? Color(nsColor: .quaternaryLabelColor).opacity(0.9)
                         : Color.clear)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { onHover($0) }
+        .onHover { hovering = $0 }
     }
 
     private var shortPath: String {
