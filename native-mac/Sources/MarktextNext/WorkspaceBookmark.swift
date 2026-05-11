@@ -17,7 +17,8 @@ import Foundation
 enum WorkspaceBookmark {
     private static let currentKey = "workspaceFolderBookmark"
     private static let recentKey = "recentWorkspaceBookmarks"
-    private static let recentMaxCount = 8
+    private static let timestampsKey = "recentWorkspaceTimestamps"
+    private static let recentMaxCount = 12
 
     /// Save the user-picked folder so the next launch can restore access.
     static func save(_ url: URL) {
@@ -29,9 +30,24 @@ enum WorkspaceBookmark {
             )
             UserDefaults.standard.set(data, forKey: currentKey)
             pushRecent(data)
+            recordAccess(url)
         } catch {
             print("WorkspaceBookmark.save failed:", error)
         }
+    }
+
+    /// Last-opened timestamp for a workspace URL, if we've ever opened it.
+    static func lastAccessed(for url: URL) -> Date? {
+        guard let dict = UserDefaults.standard.dictionary(forKey: timestampsKey) as? [String: TimeInterval] else {
+            return nil
+        }
+        return dict[url.absoluteString].map { Date(timeIntervalSince1970: $0) }
+    }
+
+    private static func recordAccess(_ url: URL) {
+        var dict = (UserDefaults.standard.dictionary(forKey: timestampsKey) as? [String: TimeInterval]) ?? [:]
+        dict[url.absoluteString] = Date().timeIntervalSince1970
+        UserDefaults.standard.set(dict, forKey: timestampsKey)
     }
 
     /// Resolve the previously-saved bookmark to a usable URL, starting access.
@@ -70,6 +86,7 @@ enum WorkspaceBookmark {
         for data in list {
             if let candidate = resolve(data), candidate.absoluteURL == url.absoluteURL {
                 UserDefaults.standard.set(data, forKey: currentKey)
+                recordAccess(candidate)
                 return candidate
             }
         }
