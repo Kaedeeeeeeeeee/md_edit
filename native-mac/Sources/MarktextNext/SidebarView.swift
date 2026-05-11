@@ -9,21 +9,31 @@ struct SidebarView: View {
             if store.fileTree.isEmpty {
                 EmptySidebar()
             } else {
-                List(selection: Binding(
-                    get: { store.currentFileURL },
-                    set: { url in
-                        if let url, url != store.currentFileURL {
-                            store.loadFile(url)
-                        }
-                    }
-                )) {
-                    OutlineGroup(store.fileTree, id: \.id, children: \.optionalChildren) { node in
-                        FileRow(node: node)
-                            .tag(node.isDirectory ? nil : node.url)
-                            .contextMenu {
-                                rowMenu(for: node)
+                // Inline outline-aware List initializer.  Critical: selection
+                // IDs are derived from the `id:` keypath here.  Using `\.url`
+                // makes them URLs so the binding type lines up; manual `.tag()`
+                // on rows wouldn't override this when OutlineGroup is involved.
+                List(
+                    store.fileTree,
+                    id: \.url,
+                    children: \.optionalChildren,
+                    selection: Binding(
+                        get: { store.currentFileURL },
+                        set: { url in
+                            guard let url else { return }
+                            var isDir: ObjCBool = false
+                            let exists = FileManager.default.fileExists(
+                                atPath: url.path,
+                                isDirectory: &isDir
+                            )
+                            if exists, !isDir.boolValue, url != store.currentFileURL {
+                                store.loadFile(url)
                             }
-                    }
+                        }
+                    )
+                ) { node in
+                    FileRow(node: node)
+                        .contextMenu { rowMenu(for: node) }
                 }
                 .listStyle(.sidebar)
             }
