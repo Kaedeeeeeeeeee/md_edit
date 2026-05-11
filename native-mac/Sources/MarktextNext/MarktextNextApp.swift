@@ -9,16 +9,16 @@ struct MarktextNextApp: App {
         WorkspaceBookmark.recentWorkspaces()
 
     var body: some Scene {
-        // Launch-time workspace picker (VS Code-style).  Shown by default;
-        // the main editor scene is suppressed until the picker chooses a
-        // workspace and explicitly opens it.
+        // Launch-time workspace picker (Xcode "Welcome to Xcode" style).
+        // Shown by default; the main editor scene is suppressed until the
+        // picker chooses a workspace and explicitly opens it.
         Window("Open Workspace", id: "picker") {
             WorkspacePicker()
                 .environment(store)
         }
         .defaultLaunchBehavior(.presented)
         .windowResizability(.contentSize)
-        .windowStyle(.titleBar)
+        .windowStyle(.hiddenTitleBar)
 
         // Main editor window.  Singleton (so state restoration can't
         // multiply it into stale duplicates that race to own the WebView
