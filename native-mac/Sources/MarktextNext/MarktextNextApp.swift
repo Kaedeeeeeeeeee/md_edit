@@ -2,8 +2,10 @@ import SwiftUI
 
 @main
 struct MarktextNextApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = DocumentStore()
     @State private var closeGuard: CloseGuard?
+    @State private var didAttachDelegate = false
     @State private var recentURLs: [URL] = RecentFiles.shared.urls
     @State private var recentFolders: [(url: URL, displayName: String)] =
         WorkspaceBookmark.recentWorkspaces()
@@ -16,6 +18,7 @@ struct MarktextNextApp: App {
             WorkspacePicker()
                 .environment(store)
                 .modifier(OpenURLForwarder(store: store))
+                .modifier(AppDelegateAttacher(store: store, didAttach: $didAttachDelegate))
         }
         .defaultLaunchBehavior(.presented)
         .windowResizability(.contentSize)
@@ -44,6 +47,7 @@ struct MarktextNextApp: App {
                     recentFolders = WorkspaceBookmark.recentWorkspaces()
                 }
                 .modifier(OpenURLForwarder(store: store))
+                .modifier(AppDelegateAttacher(store: store, didAttach: $didAttachDelegate))
         }
         .defaultLaunchBehavior(.suppressed)
         .handlesExternalEvents(matching: ["*"])
@@ -134,6 +138,33 @@ private struct SwitchWorkspaceMenuItem: View {
             openWindow(id: "picker")
         }
         .keyboardShortcut("o", modifiers: [.command, .option])
+    }
+}
+
+/// Hands the shared `DocumentStore` to `AppDelegate` so file-open events
+/// arriving via AppKit (when no SwiftUI scene is on screen) can find their
+/// way home.  Also listens for `openMainRequested` notifications and
+/// fulfils them by opening the main scene window.
+private struct AppDelegateAttacher: ViewModifier {
+    let store: DocumentStore
+    @Binding var didAttach: Bool
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                if !didAttach {
+                    didAttach = true
+                    if let delegate = NSApp.delegate as? AppDelegate {
+                        delegate.attach(store: store)
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .openMainRequested)) { _ in
+                openWindow(id: "main")
+                dismissWindow(id: "picker")
+            }
     }
 }
 

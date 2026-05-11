@@ -24,11 +24,21 @@ struct WindowAccessor: NSViewRepresentable {
     func updateNSView(_: NSView, context _: Context) {}
 }
 
+/// Intercepts the main editor window's close button.
+///
+/// Behaviour: we *never* truly close the window via the red button.  Instead
+/// we hide it (`orderOut`), which keeps the SwiftUI scene alive in memory
+/// so a later file-open event from Finder can re-show it (`makeKeyAndOrderFront`).
+/// Without this, closing the main window destroys the SwiftUI Window scene
+/// and the only remaining default scene is the picker — Finder "Open With"
+/// would route the URL to the picker, which awkwardly flashes.
+///
+/// Cmd+Q goes through `applicationShouldTerminate`, which bypasses
+/// `windowShouldClose`, so it still quits the app cleanly.
 @MainActor
 final class CloseGuard: NSObject, NSWindowDelegate {
     private let store: DocumentStore
     private weak var window: NSWindow?
-    private var isClosingForReal = false
 
     init(store: DocumentStore) {
         self.store = store
@@ -40,33 +50,40 @@ final class CloseGuard: NSObject, NSWindowDelegate {
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if isClosingForReal { return true }
-        if !store.isDirty { return true }
+        // If we're dirty, give the user the standard three-way choice before
+        // hiding.  Whether they save, discard, or cancel, we hide rather than
+        // destroy so re-opening a file later doesn't need to recreate the
+        // scene from scratch.
+        if store.isDirty {
+            let alert = NSAlert()
+            alert.messageText = "You have unsaved changes."
+            alert.informativeText = "Do you want to save before closing?"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Save")
+            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: "Don’t Save")
 
-        let alert = NSAlert()
-        alert.messageText = "You have unsaved changes."
-        alert.informativeText = "Do you want to save before closing?"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Don’t Save")
-
-        let response = alert.runModal()
-        switch response {
-        case .alertFirstButtonReturn: // Save
-            store.save()
-            if !store.isDirty {
-                isClosingForReal = true
-                DispatchQueue.main.async { sender.close() }
+            switch alert.runModal() {
+            case .alertFirstButtonReturn: // Save
+                store.save()
+                if store.isDirty {
+                    // Save was cancelled (e.g., user dismissed Save As); keep
+                    // the window open so they don't lose anything.
+                    return false
+                }
+                sender.orderOut(nil)
+                return false
+            case .alertSecondButtonReturn: // Cancel
+                return false
+            case .alertThirdButtonReturn: // Don't save
+                sender.orderOut(nil)
+                return false
+            default:
+                return false
             }
-            return false
-        case .alertSecondButtonReturn: // Cancel
-            return false
-        case .alertThirdButtonReturn: // Don't save
-            isClosingForReal = true
-            return true
-        default:
-            return false
         }
+
+        sender.orderOut(nil)
+        return false
     }
 }
