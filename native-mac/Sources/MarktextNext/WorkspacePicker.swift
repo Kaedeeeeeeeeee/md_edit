@@ -19,11 +19,11 @@ struct WorkspacePicker: View {
     var body: some View {
         HStack(spacing: 0) {
             leftPane
-                .frame(width: 400)
+                .frame(width: 220)
             rightPane
                 .frame(maxWidth: .infinity)
         }
-        .frame(width: 960, height: 620)
+        .frame(width: 520, height: 340)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear { setup() }
     }
@@ -39,22 +39,22 @@ struct WorkspacePicker: View {
                 Image(nsImage: icon)
                     .resizable()
                     .interpolation(.high)
-                    .frame(width: 160, height: 160)
-                    .padding(.bottom, 20)
+                    .frame(width: 84, height: 84)
+                    .padding(.bottom, 10)
             }
 
             // Title + version
-            VStack(spacing: 6) {
+            VStack(spacing: 2) {
                 Text("Marktext Next")
-                    .font(.system(size: 38, weight: .regular))
+                    .font(.system(size: 20, weight: .regular))
                 Text("Version \(appVersion)")
-                    .font(.system(size: 14))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
-            .padding(.bottom, 36)
+            .padding(.bottom, 18)
 
             // Action pills
-            VStack(spacing: 10) {
+            VStack(spacing: 6) {
                 PillAction(
                     systemImage: "plus.circle",
                     title: "New File…",
@@ -72,20 +72,21 @@ struct WorkspacePicker: View {
                     action: openExistingFile
                 )
             }
-            .frame(maxWidth: 280)
+            .frame(maxWidth: 170)
 
             Spacer()
 
             // Show-on-launch toggle (Xcode's bottom-left checkbox)
             Toggle(isOn: $showOnLaunch) {
-                Text("Show this window when Marktext Next launches")
-                    .font(.system(size: 12))
+                Text("Show on launch")
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
             .toggleStyle(.checkbox)
-            .padding(.bottom, 24)
+            .controlSize(.small)
+            .padding(.bottom, 12)
         }
-        .padding(.horizontal, 32)
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Right pane
@@ -93,23 +94,23 @@ struct WorkspacePicker: View {
     @ViewBuilder
     private var rightPane: some View {
         if entries.isEmpty {
-            VStack(spacing: 10) {
+            VStack(spacing: 6) {
                 Spacer()
                 Image(systemName: "tray")
-                    .font(.system(size: 36))
+                    .font(.system(size: 22))
                     .foregroundStyle(.tertiary)
                 Text("No recent workspaces")
-                    .font(.system(size: 14))
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                 Text("Open a folder to get started.")
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                 Spacer()
             }
             .frame(maxWidth: .infinity)
         } else {
             ScrollView {
-                LazyVStack(spacing: 4) {
+                LazyVStack(spacing: 2) {
                     ForEach(entries) { entry in
                         RecentRow(
                             entry: entry,
@@ -121,8 +122,8 @@ struct WorkspacePicker: View {
                         )
                     }
                 }
-                .padding(.vertical, 16)
-                .padding(.trailing, 20)
+                .padding(.vertical, 10)
+                .padding(.trailing, 10)
             }
         }
     }
@@ -217,17 +218,17 @@ private struct PillAction: View {
 
     var body: some View {
         let button = Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .regular))
-                    .frame(width: 20, alignment: .center)
+                    .font(.system(size: 11, weight: .regular))
+                    .frame(width: 14, alignment: .center)
                 Text(title)
-                    .font(.system(size: 14, weight: .regular))
-                Spacer()
+                    .font(.system(size: 11, weight: .regular))
+                Spacer(minLength: 0)
             }
             .foregroundStyle(.primary)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
             .frame(maxWidth: .infinity)
             .background(
                 Capsule()
@@ -260,9 +261,9 @@ private struct RecentRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 14) {
+            HStack(spacing: 9) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 7)
+                    RoundedRectangle(cornerRadius: 5)
                         .fill(
                             LinearGradient(
                                 colors: isSelected
@@ -272,19 +273,19 @@ private struct RecentRow: View {
                                 endPoint: .bottom
                             )
                         )
-                        .frame(width: 38, height: 38)
+                        .frame(width: 26, height: 26)
                     Image(systemName: "folder.fill")
-                        .font(.system(size: 19, weight: .regular))
+                        .font(.system(size: 12, weight: .regular))
                         .foregroundStyle(.white)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(entry.name)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(isSelected ? .white : .primary)
                         .lineLimit(1)
                     Text(shortPath)
-                        .font(.system(size: 12))
+                        .font(.system(size: 10))
                         .foregroundStyle(
                             isSelected
                                 ? Color.white.opacity(0.85)
@@ -294,13 +295,13 @@ private struct RecentRow: View {
                         .truncationMode(.middle)
                 }
 
-                Spacer(minLength: 12)
+                Spacer(minLength: 8)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 7)
                     .fill(isSelected ? Color.accentColor : Color.clear)
             )
             .contentShape(Rectangle())
