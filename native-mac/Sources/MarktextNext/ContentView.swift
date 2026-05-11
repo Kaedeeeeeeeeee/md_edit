@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(DocumentStore.self) private var store
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var didSetInitialVisibility = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -29,6 +30,24 @@ struct ContentView: View {
                 }
         }
         .navigationSplitViewStyle(.balanced)
+        .onAppear {
+            // On first appearance, hide the sidebar if we opened straight to
+            // a single file (Finder "Open With" or `open foo.md`).  When the
+            // user is inside a workspace, sidebar stays at its default `.all`.
+            guard !didSetInitialVisibility else { return }
+            didSetInitialVisibility = true
+            if store.folderURL == nil {
+                columnVisibility = .detailOnly
+            }
+        }
+        .onChange(of: store.folderURL) { oldValue, newValue in
+            // Adopting a workspace mid-session should auto-expand the sidebar
+            // so the user notices the file tree appeared — but only if it
+            // was previously hidden because there was no workspace.
+            if oldValue == nil, newValue != nil, columnVisibility == .detailOnly {
+                columnVisibility = .all
+            }
+        }
     }
 
     private var documentTitle: String {
