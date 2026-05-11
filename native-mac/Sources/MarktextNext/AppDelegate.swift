@@ -39,20 +39,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Called when the user clicks the Dock icon and the app is running.
-    /// Returning true asks the system to perform its default reopen — which
-    /// for SwiftUI means re-presenting the default-launch scene (our
-    /// picker).  When no windows are visible (because CloseGuard hid the
-    /// main window), this restores the user-facing affordance.
+    /// We deliberately do NOT bring back the hidden main editor window
+    /// here — the standard IDE behaviour (Xcode / VS Code / JetBrains) is
+    /// to re-show the workspace picker so the user can choose what to
+    /// open next, even if their previous workspace is still in memory.
+    /// Returning false suppresses AppKit's default reopen; we ask a live
+    /// SwiftUI scene to call `openWindow(id: "picker")` via notification.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         if hasVisibleWindows { return true }
-        // Try to un-hide an existing main window first; if that succeeds,
-        // we don't need SwiftUI to spawn anything new.
-        if let main = findMainWindow() {
-            main.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return false
-        }
-        return true
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: .openPickerRequested, object: nil)
+        return false
     }
 
     /// Called from the App scene after `@State store` is constructed.
@@ -111,4 +108,8 @@ extension Notification.Name {
     /// existing main NSWindow — any SwiftUI scene that's currently alive
     /// can observe this and call `openWindow(id: "main")` to bring it up.
     static let openMainRequested = Notification.Name("com.marktext.next.openMainRequested")
+
+    /// Posted by `AppDelegate` on Dock-icon-click-with-no-visible-windows.
+    /// Live SwiftUI scenes observe this and call `openWindow(id: "picker")`.
+    static let openPickerRequested = Notification.Name("com.marktext.next.openPickerRequested")
 }

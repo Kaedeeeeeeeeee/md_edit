@@ -165,6 +165,9 @@ private struct AppDelegateAttacher: ViewModifier {
                 openWindow(id: "main")
                 dismissWindow(id: "picker")
             }
+            .onReceive(NotificationCenter.default.publisher(for: .openPickerRequested)) { _ in
+                openWindow(id: "picker")
+            }
     }
 }
 
