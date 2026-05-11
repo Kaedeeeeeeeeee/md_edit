@@ -9,10 +9,6 @@ struct MarktextNextApp: App {
     @State private var didRestore = false
 
     var body: some Scene {
-        Settings {
-            SettingsView()
-        }
-
         WindowGroup {
             ContentView()
                 .environment(store)
@@ -106,6 +102,10 @@ struct MarktextNextApp: App {
                 .keyboardShortcut("r")
                 .disabled(store.folderURL == nil)
             }
+        }
+
+        Settings {
+            SettingsView()
         }
     }
 }
