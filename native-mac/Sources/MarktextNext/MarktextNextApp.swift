@@ -15,7 +15,7 @@ struct MarktextNextApp: App {
         Window("Open Workspace", id: "picker") {
             WorkspacePicker()
                 .environment(store)
-                .modifier(OpenURLForwarder())
+                .modifier(OpenURLForwarder(store: store))
         }
         .defaultLaunchBehavior(.presented)
         .windowResizability(.contentSize)
@@ -43,7 +43,7 @@ struct MarktextNextApp: App {
                 .onChange(of: store.folderURL) { _, _ in
                     recentFolders = WorkspaceBookmark.recentWorkspaces()
                 }
-                .modifier(OpenURLForwarder())
+                .modifier(OpenURLForwarder(store: store))
         }
         .defaultLaunchBehavior(.suppressed)
         .handlesExternalEvents(matching: ["*"])
@@ -142,14 +142,21 @@ private struct SwitchWorkspaceMenuItem: View {
 /// `DocumentStore`, opens the main editor window, and dismisses the picker
 /// if it was still up.  Attached to both the picker and main scenes so
 /// the URL gets handled regardless of which is foremost when it arrives.
+///
+/// `store` is injected explicitly rather than read from `@Environment`
+/// because this modifier is applied *outside* the `.environment(store)`
+/// call on each scene's root view — an `@Environment(DocumentStore.self)`
+/// here would trap during view setup because the value isn't in scope yet.
 private struct OpenURLForwarder: ViewModifier {
-    @Environment(DocumentStore.self) private var store
+    let store: DocumentStore
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
 
     func body(content: Content) -> some View {
         content.onOpenURL { url in
-            // Ensure sandbox grants access for the duration of the read.
+            // Sandbox: the URL coming from Finder open-with is granted to us
+            // implicitly, but wrap in start/stop to be safe for cases where
+            // the path is outside any explicitly-granted scope.
             let needsScope = url.startAccessingSecurityScopedResource()
             defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
             store.loadFile(url)
