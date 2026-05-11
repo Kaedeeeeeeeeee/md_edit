@@ -25,6 +25,7 @@ struct SettingsView: View {
     @AppStorage("autoSaveEnabled") private var autoSaveEnabled = false
     @AppStorage("autoSaveDelaySeconds") private var autoSaveDelaySeconds = 2.0
     @AppStorage("appearancePreference") private var appearance: AppearancePreference = .system
+    @State private var isDefaultHandler = DefaultMarkdownHandler.isDefault()
 
     var body: some View {
         TabView {
@@ -58,6 +59,33 @@ struct SettingsView: View {
                         RecentFiles.shared.clear()
                     }
                 }
+
+                Section {
+                    HStack {
+                        Text(isDefaultHandler
+                            ? "Marktext Next is the default app for .md files."
+                            : "Another app is currently the default for .md files.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Make Default") {
+                            DefaultMarkdownHandler.claimAsDefault()
+                            // Recheck after the system has had a moment to
+                            // apply / prompt — the API is async.
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 300_000_000)
+                                isDefaultHandler = DefaultMarkdownHandler.isDefault()
+                            }
+                        }
+                        .disabled(isDefaultHandler)
+                    }
+                } header: {
+                    Text("File Associations")
+                } footer: {
+                    Text("Set Marktext Next as the system-wide default for double-clicking .md files. macOS may ask you to confirm.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .formStyle(.grouped)
             .padding()
@@ -83,6 +111,7 @@ struct SettingsView: View {
         }
         .onAppear {
             applyAppearance(appearance)
+            isDefaultHandler = DefaultMarkdownHandler.isDefault()
         }
     }
 

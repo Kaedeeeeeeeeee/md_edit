@@ -266,9 +266,7 @@ private struct RecentRow: View {
                     RoundedRectangle(cornerRadius: 5)
                         .fill(
                             LinearGradient(
-                                colors: isSelected
-                                    ? [Color.white.opacity(0.25), Color.white.opacity(0.1)]
-                                    : [Color.accentColor.opacity(0.85), Color.accentColor],
+                                colors: [Color.accentColor.opacity(0.85), Color.accentColor],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -282,15 +280,11 @@ private struct RecentRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entry.name)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(isSelected ? .white : .primary)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(shortPath)
                         .font(.system(size: 10))
-                        .foregroundStyle(
-                            isSelected
-                                ? Color.white.opacity(0.85)
-                                : Color.secondary
-                        )
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -302,7 +296,9 @@ private struct RecentRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(isSelected ? Color.accentColor : Color.clear)
+                    .fill(isSelected
+                        ? Color(nsColor: .quaternaryLabelColor).opacity(0.9)
+                        : Color.clear)
             )
             .contentShape(Rectangle())
         }
