@@ -44,19 +44,15 @@ struct ContentView: View {
 /// Translucent fade sitting just below the title bar so editor content
 /// scrolling up against the title doesn't collide with it visually.
 /// Matches the macOS "scroll edge effect" used by Notes / Mail / Safari:
-/// a native material at the top fading to clear ~56 px down.
+/// a thin native material at the top fading to clear a few dozen px down.
 private struct TitleBarScrollEdge: View {
     var body: some View {
         Rectangle()
-            .fill(.regularMaterial)
-            .frame(height: 56)
+            .fill(.ultraThinMaterial)
+            .frame(height: 44)
             .mask(
                 LinearGradient(
-                    stops: [
-                        .init(color: .black, location: 0),
-                        .init(color: .black, location: 0.55),
-                        .init(color: .clear, location: 1)
-                    ],
+                    colors: [.black, .clear],
                     startPoint: .top,
                     endPoint: .bottom
                 )
