@@ -20,6 +20,9 @@ struct SidebarView: View {
                     OutlineGroup(store.fileTree, id: \.id, children: \.optionalChildren) { node in
                         FileRow(node: node)
                             .tag(node.isDirectory ? nil : node.url)
+                            .contextMenu {
+                                rowMenu(for: node)
+                            }
                     }
                 }
                 .listStyle(.sidebar)
@@ -29,12 +32,43 @@ struct SidebarView: View {
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
                 Button {
+                    store.createNewFile()
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                }
+                .help("New File in workspace")
+                .disabled(store.folderURL == nil)
+
+                Button {
                     store.openFolderDialog()
                 } label: {
                     Image(systemName: "folder.badge.plus")
                 }
                 .help("Open Folder")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func rowMenu(for node: FileNode) -> some View {
+        if node.isDirectory {
+            Button("New File…") {
+                store.createNewFile(in: node.url)
+            }
+            Button("New Folder…") {
+                store.createNewFolder(in: node.url)
+            }
+            Divider()
+        }
+        Button("Reveal in Finder") {
+            store.revealInFinder(node.url)
+        }
+        Divider()
+        Button("Rename…") {
+            store.rename(node.url)
+        }
+        Button("Move to Trash", role: .destructive) {
+            store.delete(node.url)
         }
     }
 }

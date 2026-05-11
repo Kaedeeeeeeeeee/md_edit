@@ -5,6 +5,8 @@ struct MarktextNextApp: App {
     @State private var store = DocumentStore()
     @State private var closeGuard: CloseGuard?
     @State private var recentURLs: [URL] = RecentFiles.shared.urls
+    @State private var recentFolders: [(url: URL, displayName: String)] = WorkspaceBookmark.recentWorkspaces()
+    @State private var didRestore = false
 
     var body: some Scene {
         Settings {
@@ -24,8 +26,18 @@ struct MarktextNextApp: App {
                         }
                     }
                 )
+                .onAppear {
+                    if !didRestore {
+                        didRestore = true
+                        store.restoreSavedWorkspaceIfAvailable()
+                        recentFolders = WorkspaceBookmark.recentWorkspaces()
+                    }
+                }
                 .onChange(of: store.currentFileURL) { _, _ in
                     recentURLs = RecentFiles.shared.urls
+                }
+                .onChange(of: store.folderURL) { _, _ in
+                    recentFolders = WorkspaceBookmark.recentWorkspaces()
                 }
         }
         .windowStyle(.titleBar)
@@ -43,7 +55,24 @@ struct MarktextNextApp: App {
                 Button("Open Folder…") { store.openFolderDialog() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
 
-                Menu("Open Recent") {
+                Menu("Open Recent Folder") {
+                    if recentFolders.isEmpty {
+                        Text("No recent folders")
+                    } else {
+                        ForEach(recentFolders, id: \.url.absoluteString) { item in
+                            Button(item.displayName) {
+                                store.adoptRecentWorkspace(item.url)
+                            }
+                        }
+                        Divider()
+                        Button("Clear Menu") {
+                            WorkspaceBookmark.clearRecent()
+                            recentFolders = []
+                        }
+                    }
+                }
+
+                Menu("Open Recent File") {
                     if recentURLs.isEmpty {
                         Text("No recent files")
                     } else {

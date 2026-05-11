@@ -25,6 +25,8 @@ final class DocumentStore {
     var loadIntoEditor: ((String) -> Void)?
 
     private var autoSaveTask: Task<Void, Never>?
+    private let folderWatcher = FolderWatcher()
+    private var folderWatcherWired = false
 
     // Called by JS bridge whenever editor content changes.
     func handleEditorChange(_ markdown: String) {
@@ -74,8 +76,45 @@ final class DocumentStore {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
-            folderURL = url
-            rebuildFileTree()
+            adoptFolder(url)
+            WorkspaceBookmark.save(url)
+        }
+    }
+
+    /// Set the active workspace folder and refresh the file tree.
+    /// Caller is responsible for having started access on `url` if it came
+    /// from a security-scoped bookmark.
+    func adoptFolder(_ url: URL) {
+        folderURL = url
+        rebuildFileTree()
+        if !folderWatcherWired {
+            folderWatcher.onChange = { [weak self] in
+                self?.handleExternalFolderChange()
+            }
+            folderWatcherWired = true
+        }
+        folderWatcher.start(watching: url)
+    }
+
+    /// Called by FolderWatcher when something on disk changed inside the
+    /// active workspace. Refreshes the tree; doesn't touch the open document.
+    func handleExternalFolderChange() {
+        rebuildFileTree()
+    }
+
+    /// Try to re-adopt the workspace folder that was open at the previous
+    /// quit. Called once from the App scene at launch.
+    func restoreSavedWorkspaceIfAvailable() {
+        guard folderURL == nil else { return }
+        if let url = WorkspaceBookmark.restore() {
+            adoptFolder(url)
+        }
+    }
+
+    /// Switch to one of the recently-used workspace folders.
+    func adoptRecentWorkspace(_ url: URL) {
+        if let resolved = WorkspaceBookmark.adoptRecent(url) {
+            adoptFolder(resolved)
         }
     }
 
@@ -138,6 +177,132 @@ final class DocumentStore {
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
+    }
+
+    // MARK: - File tree mutations
+
+    /// Create a new empty .md file inside `parent` (use folderURL if nil).
+    /// Returns the created URL on success.
+    @discardableResult
+    func createNewFile(in parent: URL? = nil) -> URL? {
+        let dir = parent ?? folderURL
+        guard let dir else { return nil }
+        guard let name = promptForName(
+            title: "New File",
+            placeholder: "Untitled.md",
+            defaultValue: "Untitled.md"
+        ), !name.isEmpty else { return nil }
+        let finalName = name.hasSuffix(".md") ? name : "\(name).md"
+        let url = uniqueURL(in: dir, name: finalName)
+        do {
+            try "".write(to: url, atomically: true, encoding: .utf8)
+            rebuildFileTree()
+            loadFile(url)
+            return url
+        } catch {
+            presentAlert("Failed to create file", error.localizedDescription)
+            return nil
+        }
+    }
+
+    @discardableResult
+    func createNewFolder(in parent: URL? = nil) -> URL? {
+        let dir = parent ?? folderURL
+        guard let dir else { return nil }
+        guard let name = promptForName(
+            title: "New Folder",
+            placeholder: "Untitled Folder",
+            defaultValue: "Untitled Folder"
+        ), !name.isEmpty else { return nil }
+        let url = uniqueURL(in: dir, name: name)
+        do {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+            rebuildFileTree()
+            return url
+        } catch {
+            presentAlert("Failed to create folder", error.localizedDescription)
+            return nil
+        }
+    }
+
+    func rename(_ url: URL) {
+        guard let newName = promptForName(
+            title: "Rename",
+            placeholder: url.lastPathComponent,
+            defaultValue: url.lastPathComponent
+        ), !newName.isEmpty, newName != url.lastPathComponent else { return }
+        let dest = url.deletingLastPathComponent().appendingPathComponent(newName)
+        do {
+            try FileManager.default.moveItem(at: url, to: dest)
+            if currentFileURL == url {
+                currentFileURL = dest
+            }
+            rebuildFileTree()
+        } catch {
+            presentAlert("Failed to rename", error.localizedDescription)
+        }
+    }
+
+    func delete(_ url: URL) {
+        let alert = NSAlert()
+        alert.messageText = "Move “\(url.lastPathComponent)” to the Trash?"
+        alert.informativeText = "You can restore it from the Trash if needed."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Move to Trash")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+            if currentFileURL == url {
+                currentFileURL = nil
+                currentMarkdown = ""
+                isDirty = false
+                loadIntoEditor?("")
+            }
+            rebuildFileTree()
+        } catch {
+            presentAlert("Failed to move to Trash", error.localizedDescription)
+        }
+    }
+
+    func revealInFinder(_ url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    // MARK: - Filesystem helpers
+
+    private func uniqueURL(in dir: URL, name: String) -> URL {
+        let base = dir.appendingPathComponent(name)
+        if !FileManager.default.fileExists(atPath: base.path) { return base }
+        let stem = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
+        for i in 2...999 {
+            let candidate = dir.appendingPathComponent(
+                ext.isEmpty ? "\(stem) \(i)" : "\(stem) \(i).\(ext)"
+            )
+            if !FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+        }
+        return base
+    }
+
+    private func promptForName(title: String, placeholder: String, defaultValue: String) -> String? {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.placeholderString = placeholder
+        field.stringValue = defaultValue
+        // Select stem so ".md" extension survives unless user replaces all.
+        if let editor = field.currentEditor() as? NSTextView {
+            editor.selectAll(nil)
+        }
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return nil }
+        return field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - File tree

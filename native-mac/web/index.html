@@ -29,6 +29,63 @@
         padding: 24px 0;
       }
 
+      /* Math block (custom) */
+      .math-block {
+        margin: 4px 0;
+        padding: 14px 18px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.03);
+        cursor: text;
+        text-align: center;
+        transition: background-color 120ms;
+        outline: none;
+      }
+      .math-block:hover {
+        background: rgba(0, 0, 0, 0.05);
+      }
+      .math-block:focus-visible {
+        background: rgba(10, 132, 255, 0.08);
+        box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.35);
+      }
+      .math-block--editing {
+        background: rgba(0, 0, 0, 0.04);
+        padding: 10px 12px;
+        cursor: text;
+        text-align: left;
+      }
+      .math-block__textarea {
+        width: 100%;
+        min-height: 60px;
+        border: none;
+        background: transparent;
+        outline: none;
+        resize: vertical;
+        font-family: "SF Mono", ui-monospace, Menlo, monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        color: inherit;
+      }
+      .math-block__hint {
+        margin-top: 6px;
+        font-size: 11px;
+        color: rgba(60, 60, 67, 0.55);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .math-block {
+          background: rgba(255, 255, 255, 0.05);
+        }
+        .math-block:hover {
+          background: rgba(255, 255, 255, 0.08);
+        }
+        .math-block--editing {
+          background: rgba(255, 255, 255, 0.06);
+        }
+        .math-block__hint {
+          color: rgba(235, 235, 245, 0.5);
+        }
+      }
+
       @media (prefers-color-scheme: dark) {
         body {
           background: #1c1c1e;
