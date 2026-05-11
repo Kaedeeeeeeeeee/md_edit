@@ -10,6 +10,9 @@ struct ContentView: View {
         } detail: {
             EditorWebView()
                 .ignoresSafeArea(edges: .top)
+                .overlay(alignment: .top) {
+                    TitleBarScrollEdge()
+                }
                 .navigationTitle(documentTitle)
                 .navigationSubtitle(folderTitle)
                 .toolbar {
@@ -35,5 +38,30 @@ struct ContentView: View {
 
     private var folderTitle: String {
         store.folderURL?.lastPathComponent ?? ""
+    }
+}
+
+/// Translucent fade sitting just below the title bar so editor content
+/// scrolling up against the title doesn't collide with it visually.
+/// Matches the macOS "scroll edge effect" used by Notes / Mail / Safari:
+/// a native material at the top fading to clear ~56 px down.
+private struct TitleBarScrollEdge: View {
+    var body: some View {
+        Rectangle()
+            .fill(.regularMaterial)
+            .frame(height: 56)
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: 0.55),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .allowsHitTesting(false)
+            .ignoresSafeArea(edges: .top)
     }
 }
