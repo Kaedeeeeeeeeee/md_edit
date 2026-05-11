@@ -27,11 +27,12 @@ struct EditorWebView: NSViewRepresentable {
         context.coordinator.webView = webView
         context.coordinator.store = store
 
-        if Bundle.main.url(
+        let hasIndex = Bundle.main.url(
             forResource: "index",
             withExtension: "html",
             subdirectory: "editor"
-        ) != nil {
+        ) != nil
+        if hasIndex {
             webView.load(URLRequest(url: EditorSchemeHandler.homeURL))
         } else {
             webView.loadHTMLString(missingBundleHTML, baseURL: nil)
@@ -109,6 +110,26 @@ struct EditorWebView: NSViewRepresentable {
             default:
                 break
             }
+        }
+
+        // MARK: - WKNavigationDelegate
+
+        func webView(
+            _ webView: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation!,
+            withError error: any Error
+        ) {
+            let ns = error as NSError
+            DebugLog.write("[nav] provisional FAILED: \(ns.domain)#\(ns.code) \(error.localizedDescription)")
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFail navigation: WKNavigation!,
+            withError error: any Error
+        ) {
+            let ns = error as NSError
+            DebugLog.write("[nav] FAILED: \(ns.domain)#\(ns.code) \(error.localizedDescription)")
         }
 
         private func sendLoad(_ markdown: String) {

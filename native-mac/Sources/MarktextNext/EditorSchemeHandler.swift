@@ -18,6 +18,7 @@ final class EditorSchemeHandler: NSObject, WKURLSchemeHandler {
 
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else {
+            DebugLog.write("[scheme] no URL on task")
             fail(urlSchemeTask, code: NSURLErrorBadURL)
             return
         }
@@ -31,6 +32,7 @@ final class EditorSchemeHandler: NSObject, WKURLSchemeHandler {
         guard
             let resourcePath = Bundle.main.resourcePath
         else {
+            DebugLog.write("[scheme] no resourcePath")
             fail(urlSchemeTask, code: NSURLErrorResourceUnavailable)
             return
         }
@@ -46,11 +48,13 @@ final class EditorSchemeHandler: NSObject, WKURLSchemeHandler {
             .standardizedFileURL.path
         let resolved = fileURL.standardizedFileURL.path
         guard resolved.hasPrefix(editorRoot) else {
+            DebugLog.write("[scheme] path escape blocked: \(resolved) vs root: \(editorRoot)")
             fail(urlSchemeTask, code: NSURLErrorNoPermissionsToReadFile)
             return
         }
 
         guard let data = try? Data(contentsOf: fileURL) else {
+            DebugLog.write("[scheme] file not found: \(fileURL.path)")
             fail(urlSchemeTask, code: NSURLErrorFileDoesNotExist)
             return
         }
