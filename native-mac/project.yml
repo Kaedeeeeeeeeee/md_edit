@@ -12,8 +12,7 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "26.0"
     ENABLE_HARDENED_RUNTIME: YES
     CODE_SIGN_STYLE: Automatic
-    CODE_SIGN_IDENTITY: "-"
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: "Y4FV6WUU4V"
 
 targets:
   MarktextNext:
@@ -25,6 +24,7 @@ targets:
       - path: Resources/editor
         type: folder
         buildPhase: resources
+      - path: Assets.xcassets
     settings:
       base:
         PRODUCT_NAME: "Marktext Next"

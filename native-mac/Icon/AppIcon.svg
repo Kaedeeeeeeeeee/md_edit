@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Marktext Next — app icon source.
+  1024×1024 canvas; macOS-style rounded squircle (corner radius ~22%).
+  Edit colors, geometry, glyph here; run scripts/build-icon.sh to regenerate
+  the AppIcon.appiconset PNGs.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Squircle base: soft macOS-blue gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6FB8FF"/>
+      <stop offset="1" stop-color="#0A6CFF"/>
+    </linearGradient>
+
+    <!-- Subtle inner highlight at the top edge -->
+    <linearGradient id="topHighlight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(255,255,255,0.35)"/>
+      <stop offset="1" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+
+    <!-- Document drop shadow -->
+    <filter id="docShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
+      <feOffset dx="0" dy="10"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.18"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle background.  Inset 60px on each side so the icon has breathing room
+       within the 1024 canvas (helps with @1x rendering on Dock). -->
+  <rect x="60" y="60" width="904" height="904" rx="200" ry="200" fill="url(#bg)"/>
+  <!-- Top-edge highlight for depth -->
+  <rect x="60" y="60" width="904" height="220" rx="200" ry="200" fill="url(#topHighlight)"/>
+
+  <!-- White document (with shadow). Centered, taller than wide like a page. -->
+  <g filter="url(#docShadow)">
+    <rect x="276" y="218" width="472" height="588" rx="32" ry="32" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Heading line: macOS-blue accent, fuller width -->
+  <rect x="340" y="316" width="316" height="38" rx="8" fill="#0A6CFF"/>
+  <!-- Body lines: soft gray -->
+  <rect x="340" y="394" width="376" height="22" rx="5" fill="#D1D5DB"/>
+  <rect x="340" y="438" width="330" height="22" rx="5" fill="#D1D5DB"/>
+  <rect x="340" y="482" width="392" height="22" rx="5" fill="#D1D5DB"/>
+  <rect x="340" y="526" width="268" height="22" rx="5" fill="#D1D5DB"/>
+
+  <!-- Markdown identifier — stylized "M↓" glyph, bottom-right of document. -->
+  <g transform="translate(516, 622)" fill="none" stroke="#0A6CFF"
+     stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <!-- M -->
+    <path d="M 0 120 L 0 0 L 30 0 L 70 75 L 110 0 L 140 0 L 140 120"
+          stroke="#0A6CFF" fill="none"/>
+    <!-- Arrow down -->
+    <path d="M 198 0 L 198 100" />
+    <path d="M 168 70 L 198 105 L 228 70" />
+  </g>
+</svg>
