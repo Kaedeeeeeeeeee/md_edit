@@ -73,33 +73,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         showMainWindow()
     }
 
-    /// Bring the main editor window (whether hidden or freshly closed) back
-    /// on screen.  Falls back to a SwiftUI openWindow request via
-    /// notification if no NSWindow is currently tracked.
+    /// Ask SwiftUI to (re)present the main editor window.  Going through
+    /// `openWindow(id:)` rather than poking `NSApp.windows` manually means
+    /// SwiftUI handles all the Window-scene lifecycle correctly — bringing
+    /// a hidden main scene back to front, creating it if it never existed,
+    /// AND closing the picker in the same notification handler.  Trying to
+    /// find the main window ourselves via NSApp's window list was leaving
+    /// the picker visible on top of (or in front of) the freshly-revealed
+    /// main window, so the user just saw the picker and thought nothing
+    /// had opened.
     private func showMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        if let main = findMainWindow() {
-            main.makeKeyAndOrderFront(nil)
-            return
-        }
-        // Fall back: ask whatever scene is alive to open the main window.
         NotificationCenter.default.post(name: .openMainRequested, object: nil)
-    }
-
-    private func findMainWindow() -> NSWindow? {
-        // The picker scene's window has title "Open Workspace"; everything
-        // else is the editor.  We also accept windows with no title since
-        // SwiftUI sometimes sets it late.
-        for window in NSApp.windows {
-            let title = window.title
-            if title == "Open Workspace" { continue }
-            if window.isKind(of: NSWindow.self),
-               window.contentView != nil,
-               window.styleMask.contains(.titled) {
-                return window
-            }
-        }
-        return nil
     }
 }
 
