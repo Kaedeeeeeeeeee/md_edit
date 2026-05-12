@@ -18,7 +18,7 @@ struct WorkspacePicker: View {
     var body: some View {
         HStack(spacing: 0) {
             leftPane
-                .frame(width: 260)
+                .frame(width: 300)
             rightPane
                 .frame(maxWidth: .infinity)
         }
@@ -71,7 +71,7 @@ struct WorkspacePicker: View {
                     action: openExistingFile
                 )
             }
-            .frame(maxWidth: 200)
+            .frame(maxWidth: 230)
 
             Spacer()
 
