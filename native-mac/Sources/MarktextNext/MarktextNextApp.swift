@@ -3,12 +3,18 @@ import SwiftUI
 @main
 struct MarktextNextApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var store = DocumentStore()
+    @State private var store: DocumentStore
     @State private var closeGuard: CloseGuard?
     @State private var didAttachDelegate = false
     @State private var recentURLs: [URL] = RecentFiles.shared.urls
     @State private var recentFolders: [(url: URL, displayName: String)] =
         WorkspaceBookmark.recentWorkspaces()
+
+    init() {
+        let store = DocumentStore()
+        _store = State(initialValue: store)
+        appDelegate.attach(store: store)
+    }
 
     var body: some Scene {
         // Launch-time workspace picker (Xcode "Welcome to Xcode" style).
@@ -38,11 +44,9 @@ struct MarktextNextApp: App {
                 .frame(minWidth: 800, minHeight: 520)
                 .background(
                     WindowAccessor { window in
-                        if closeGuard == nil {
-                            let guardian = CloseGuard(store: store)
-                            guardian.attach(to: window)
-                            closeGuard = guardian
-                        }
+                        let guardian = closeGuard ?? CloseGuard(store: store)
+                        guardian.attach(to: window)
+                        closeGuard = guardian
                         (NSApp.delegate as? AppDelegate)?.registerMainWindow(window)
                     }
                 )
@@ -194,14 +198,16 @@ private struct OpenURLForwarder: ViewModifier {
 
     func body(content: Content) -> some View {
         content.onOpenURL { url in
-            // Sandbox: the URL coming from Finder open-with is granted to us
-            // implicitly, but wrap in start/stop to be safe for cases where
-            // the path is outside any explicitly-granted scope.
-            let needsScope = url.startAccessingSecurityScopedResource()
-            defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
-            store.loadFile(url)
-            openWindow(id: "main")
-            dismissWindow(id: "picker")
+            if let delegate = NSApp.delegate as? AppDelegate {
+                delegate.openDocument(at: url)
+            } else {
+                // Fallback for preview/test contexts without the AppKit delegate.
+                let needsScope = url.startAccessingSecurityScopedResource()
+                defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
+                store.loadFile(url)
+                openWindow(id: "main")
+                dismissWindow(id: "picker")
+            }
         }
     }
 }

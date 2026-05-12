@@ -30,22 +30,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the SwiftUI path doesn't reliably wake a Window scene whose
     /// NSWindow was `orderOut`'d (ghost-scene problem).  AppKit-level
     /// `makeKeyAndOrderFront` / `orderOut` are synchronous and unaffected.
-    weak var mainWindow: NSWindow?
+    var mainWindow: NSWindow?
     weak var pickerWindow: NSWindow?
 
     /// URLs that arrived before `store` was wired up (e.g., cold launch).
     /// Drained from `MarktextNextApp` once the store is attached.
     var pendingURLs: [URL] = []
 
+    private var appKitMainCloseGuard: CloseGuard?
+
     func application(_ application: NSApplication, open urls: [URL]) {
         DebugLog.write("[appdelegate] open \(urls.count) URLs")
-        for url in urls {
-            if let store {
-                deliverURL(url, to: store)
-            } else {
-                pendingURLs.append(url)
-            }
-        }
+        openDocuments(at: urls)
+    }
+
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        DebugLog.write("[appdelegate] openFile \(filename)")
+        openDocument(at: URL(fileURLWithPath: filename))
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        DebugLog.write("[appdelegate] openFiles \(filenames.count) files")
+        openDocuments(at: filenames.map { URL(fileURLWithPath: $0) })
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    func openDocument(at url: URL) {
+        openDocuments(at: [url])
     }
 
     /// Called when the user clicks the Dock icon and the app is running.
@@ -69,10 +81,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Window registration
 
     func registerMainWindow(_ window: NSWindow) {
+        window.identifier = .marktextMainWindow
+        window.isReleasedWhenClosed = false
         mainWindow = window
     }
 
     func registerPickerWindow(_ window: NSWindow) {
+        window.identifier = .marktextPickerWindow
         pickerWindow = window
     }
 
@@ -89,6 +104,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Internals
+
+    private func openDocuments(at urls: [URL]) {
+        for url in urls {
+            if let store {
+                deliverURL(url, to: store)
+            } else {
+                pendingURLs.append(url)
+            }
+        }
+    }
 
     private func deliverURL(_ url: URL, to store: DocumentStore) {
         let needsScope = url.startAccessingSecurityScopedResource()
@@ -114,22 +139,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // in front of (or alongside) the main editor.  `orderOut` keeps
         // the NSWindow alive for later `applicationShouldHandleReopen`
         // calls to revive it.
-        if let pickerWindow, pickerWindow.isVisible {
+        if let pickerWindow = pickerWindow ?? findWindow(identifier: .marktextPickerWindow),
+           pickerWindow.isVisible {
             pickerWindow.orderOut(nil)
         }
 
-        if let mainWindow {
+        if let mainWindow = mainWindow ?? findWindow(identifier: .marktextMainWindow) {
+            self.mainWindow = mainWindow
             mainWindow.makeKeyAndOrderFront(nil)
             return
         }
 
-        // Cold-launch fallback: the main scene's NSWindow hasn't been
-        // instantiated yet.  Whichever SwiftUI scene appears first (almost
-        // always the picker, which is `.defaultLaunchBehavior(.presented)`)
-        // will receive this notification and construct main via
-        // `openWindow(id: "main")`.
+        if let store {
+            let window = createMainWindow(store: store)
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+
         NotificationCenter.default.post(name: .openMainRequested, object: nil)
     }
+
+    private func findWindow(identifier: NSUserInterfaceItemIdentifier) -> NSWindow? {
+        NSApp.windows.first { $0.identifier == identifier }
+    }
+
+    private func createMainWindow(store: DocumentStore) -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1088, height: 714),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Marktext Next"
+        window.identifier = .marktextMainWindow
+        window.minSize = NSSize(width: 800, height: 520)
+        window.toolbarStyle = .unified
+        window.contentView = NSHostingView(
+            rootView: ContentView()
+                .environment(store)
+                .frame(minWidth: 800, minHeight: 520)
+        )
+
+        let guardian = CloseGuard(store: store)
+        guardian.attach(to: window)
+        appKitMainCloseGuard = guardian
+        mainWindow = window
+        window.center()
+        return window
+    }
+}
+
+private extension NSUserInterfaceItemIdentifier {
+    static let marktextMainWindow = NSUserInterfaceItemIdentifier("com.marktext.next.window.main")
+    static let marktextPickerWindow = NSUserInterfaceItemIdentifier("com.marktext.next.window.picker")
 }
 
 extension Notification.Name {
