@@ -17,6 +17,11 @@ struct MarktextNextApp: App {
         Window("Open Workspace", id: "picker") {
             WorkspacePicker()
                 .environment(store)
+                .background(
+                    WindowAccessor { window in
+                        (NSApp.delegate as? AppDelegate)?.registerPickerWindow(window)
+                    }
+                )
                 .modifier(OpenURLForwarder(store: store))
                 .modifier(AppDelegateAttacher(store: store, didAttach: $didAttachDelegate))
         }
@@ -38,6 +43,7 @@ struct MarktextNextApp: App {
                             guardian.attach(to: window)
                             closeGuard = guardian
                         }
+                        (NSApp.delegate as? AppDelegate)?.registerMainWindow(window)
                     }
                 )
                 .onChange(of: store.currentFileURL) { _, _ in
