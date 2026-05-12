@@ -18,11 +18,11 @@ struct WorkspacePicker: View {
     var body: some View {
         HStack(spacing: 0) {
             leftPane
-                .frame(width: 220)
+                .frame(width: 260)
             rightPane
                 .frame(maxWidth: .infinity)
         }
-        .frame(width: 520, height: 340)
+        .frame(width: 640, height: 420)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear { setup() }
     }
@@ -38,19 +38,19 @@ struct WorkspacePicker: View {
                 Image(nsImage: icon)
                     .resizable()
                     .interpolation(.high)
-                    .frame(width: 84, height: 84)
-                    .padding(.bottom, 10)
+                    .frame(width: 100, height: 100)
+                    .padding(.bottom, 12)
             }
 
             // Title + version
             VStack(spacing: 2) {
                 Text("Marktext Next")
-                    .font(.system(size: 20, weight: .regular))
+                    .font(.system(size: 23, weight: .regular))
                 Text("Version \(appVersion)")
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
-            .padding(.bottom, 18)
+            .padding(.bottom, 22)
 
             // Action pills
             VStack(spacing: 6) {
@@ -71,7 +71,7 @@ struct WorkspacePicker: View {
                     action: openExistingFile
                 )
             }
-            .frame(maxWidth: 170)
+            .frame(maxWidth: 200)
 
             Spacer()
 
@@ -209,17 +209,17 @@ private struct PillAction: View {
 
     var body: some View {
         let button = Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 9) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .regular))
-                    .frame(width: 14, alignment: .center)
+                    .font(.system(size: 12, weight: .regular))
+                    .frame(width: 16, alignment: .center)
                 Text(title)
-                    .font(.system(size: 11, weight: .regular))
+                    .font(.system(size: 12, weight: .regular))
                 Spacer(minLength: 0)
             }
             .foregroundStyle(.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
             .background(
                 Capsule()
@@ -253,7 +253,7 @@ private struct RecentRow: View {
         Button(action: onTap) {
             HStack(spacing: 9) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 5)
+                    RoundedRectangle(cornerRadius: 6)
                         .fill(
                             LinearGradient(
                                 colors: [Color.accentColor.opacity(0.85), Color.accentColor],
@@ -261,19 +261,19 @@ private struct RecentRow: View {
                                 endPoint: .bottom
                             )
                         )
-                        .frame(width: 26, height: 26)
+                        .frame(width: 30, height: 30)
                     Image(systemName: "folder.fill")
-                        .font(.system(size: 12, weight: .regular))
+                        .font(.system(size: 14, weight: .regular))
                         .foregroundStyle(.white)
                 }
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entry.name)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(shortPath)
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
