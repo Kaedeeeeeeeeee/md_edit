@@ -32,7 +32,7 @@ final class DocumentStore {
     private var folderWatcherWired = false
 
     init() {
-        // First-launch-after-install: ask macOS to make Marktext Next the
+        // First-launch-after-install: ask macOS to make Notation the
         // default handler for .md files.  Idempotent — the helper tracks a
         // flag in UserDefaults so we only do it once.
         DefaultMarkdownHandler.claimAsDefaultIfNeeded()

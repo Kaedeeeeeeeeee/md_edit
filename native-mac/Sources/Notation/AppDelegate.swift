@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var pickerWindow: NSWindow?
 
     /// URLs that arrived before `store` was wired up (e.g., cold launch).
-    /// Drained from `MarktextNextApp` once the store is attached.
+    /// Drained from `NotationApp` once the store is attached.
     var pendingURLs: [URL] = []
 
     private var appKitMainCloseGuard: CloseGuard?
@@ -81,13 +81,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Window registration
 
     func registerMainWindow(_ window: NSWindow) {
-        window.identifier = .marktextMainWindow
+        window.identifier = .notationMainWindow
         window.isReleasedWhenClosed = false
         mainWindow = window
     }
 
     func registerPickerWindow(_ window: NSWindow) {
-        window.identifier = .marktextPickerWindow
+        window.identifier = .notationPickerWindow
         pickerWindow = window
     }
 
@@ -139,12 +139,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // in front of (or alongside) the main editor.  `orderOut` keeps
         // the NSWindow alive for later `applicationShouldHandleReopen`
         // calls to revive it.
-        if let pickerWindow = pickerWindow ?? findWindow(identifier: .marktextPickerWindow),
+        if let pickerWindow = pickerWindow ?? findWindow(identifier: .notationPickerWindow),
            pickerWindow.isVisible {
             pickerWindow.orderOut(nil)
         }
 
-        if let mainWindow = mainWindow ?? findWindow(identifier: .marktextMainWindow) {
+        if let mainWindow = mainWindow ?? findWindow(identifier: .notationMainWindow) {
             self.mainWindow = mainWindow
             mainWindow.makeKeyAndOrderFront(nil)
             return
@@ -170,8 +170,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Marktext Next"
-        window.identifier = .marktextMainWindow
+        window.title = "Notation"
+        window.identifier = .notationMainWindow
         window.minSize = NSSize(width: 800, height: 520)
         window.toolbarStyle = .unified
         window.contentView = NSHostingView(
@@ -190,17 +190,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 private extension NSUserInterfaceItemIdentifier {
-    static let marktextMainWindow = NSUserInterfaceItemIdentifier("com.marktext.next.window.main")
-    static let marktextPickerWindow = NSUserInterfaceItemIdentifier("com.marktext.next.window.picker")
+    static let notationMainWindow = NSUserInterfaceItemIdentifier("com.notation.window.main")
+    static let notationPickerWindow = NSUserInterfaceItemIdentifier("com.notation.window.picker")
 }
 
 extension Notification.Name {
     /// Posted by `AppDelegate` when it has a URL to open but can't find an
     /// existing main NSWindow — any SwiftUI scene that's currently alive
     /// can observe this and call `openWindow(id: "main")` to bring it up.
-    static let openMainRequested = Notification.Name("com.marktext.next.openMainRequested")
+    static let openMainRequested = Notification.Name("com.notation.openMainRequested")
 
     /// Posted by `AppDelegate` on Dock-icon-click-with-no-visible-windows.
     /// Live SwiftUI scenes observe this and call `openWindow(id: "picker")`.
-    static let openPickerRequested = Notification.Name("com.marktext.next.openPickerRequested")
+    static let openPickerRequested = Notification.Name("com.notation.openPickerRequested")
 }

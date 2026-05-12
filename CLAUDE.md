@@ -1,10 +1,10 @@
-# Marktext Next — 项目上下文
+# Notation — 项目上下文
 
 > 给后续接手这个项目的 Claude 看的快速上手文档。
 
 ## 这是什么
 
-**Marktext Next** 是一款 **macOS 26+ 原生** Markdown 编辑器，目标是把 Notion 那种**块级所见即所得**的编辑体验做成可以上 **App Store** 的 Mac 原生应用。
+**Notation** 是一款 **macOS 26+ 原生** Markdown 编辑器，目标是把 Notion 那种**块级所见即所得**的编辑体验做成可以上 **App Store** 的 Mac 原生应用。
 
 - 用户拥有的是磁盘上**真实的 `.md` 文件**，不是某种私有数据库
 - 编辑器内核是 **BlockNote（基于 ProseMirror）**，提供 `/` 菜单、块拖拽、表格、代码块、任务列表、KaTeX 公式块等
@@ -45,14 +45,14 @@
 ## 仓库结构
 
 ```
-marktext-next-demo/                   # 项目根（git remote: Kaedeeeeeeeeee/md_edit）
+notation-demo/                   # 项目根（git remote: Kaedeeeeeeeeee/md_edit）
 ├── CLAUDE.md                         # 本文件
 ├── README.md                         # 用户向 README（双 track 说明）
 │
 ├── native-mac/                       # ★ 主线，Swift + WKWebView ★
 │   ├── project.yml                   # XcodeGen 配置；改完跑 `xcodegen generate`
-│   ├── Sources/MarktextNext/
-│   │   ├── MarktextNextApp.swift     # @main App scene + commands
+│   ├── Sources/Notation/
+│   │   ├── NotationApp.swift     # @main App scene + commands
 │   │   ├── AppDelegate.swift         # AppKit URL 路由 + 直接 NSWindow 操作
 │   │   ├── ContentView.swift         # NavigationSplitView 根
 │   │   ├── SidebarView.swift         # 自写递归文件树（不用 List+OutlineGroup）
@@ -67,7 +67,7 @@ marktext-next-demo/                   # 项目根（git remote: Kaedeeeeeeeeee/m
 │   │   ├── RecentFiles.swift         # 最近文件
 │   │   ├── Settings.swift            # 设置面板
 │   │   ├── DebugLog.swift            # 文件日志（绕开 unified log 过滤）
-│   │   └── MarktextNext.entitlements # sandbox + user-selected files + network.client
+│   │   └── Notation.entitlements # sandbox + user-selected files + network.client
 │   ├── Resources/editor/             # Vite build 产物（gitignored，会 bake 进 .app）
 │   ├── Assets.xcassets/AppIcon.appiconset/  # 自动生成
 │   ├── Icon/AppIcon.svg              # 应用图标源（SVG，可编辑）
@@ -120,7 +120,7 @@ DocumentStore 上的 `loadEpoch: Int` 单调递增，编辑器在 `updateNSView`
 ## 常用命令
 
 ```bash
-cd /Users/user/marktext-next-demo/native-mac
+cd /Users/user/notation-demo/native-mac
 
 # 改了 web/ 之后：
 cd web && pnpm build && cd ..
@@ -129,24 +129,24 @@ cd web && pnpm build && cd ..
 xcodegen generate
 
 # 构建 Release .app：
-xcodebuild -project MarktextNext.xcodeproj -scheme MarktextNext \
+xcodebuild -project Notation.xcodeproj -scheme Notation \
   -configuration Release -derivedDataPath build \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build
 
 # 装到 /Applications + 刷 Launch Services：
-rm -rf "/Applications/Marktext Next.app"
-cp -R "build/Build/Products/Release/Marktext Next.app" /Applications/
-/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f -R "/Applications/Marktext Next.app"
+rm -rf "/Applications/Notation.app"
+cp -R "build/Build/Products/Release/Notation.app" /Applications/
+/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f -R "/Applications/Notation.app"
 
 # 应用图标改了 Icon/AppIcon.svg 之后：
 ./scripts/build-icon.sh
 
 # 看运行时日志：
-cat "$HOME/Library/Containers/com.marktext.next.app/Data/Documents/mt-debug.log"
+cat "$HOME/Library/Containers/com.notation.app/Data/Documents/mt-debug.log"
 
 # 清状态恢复（如果遇到"上次异常退出"对话框）：
-rm -rf "$HOME/Library/Saved Application State/com.marktext.next.app.savedState"
-rm -rf "$HOME/Library/Containers/com.marktext.next.app/Data/Library/Saved Application State"
+rm -rf "$HOME/Library/Saved Application State/com.notation.app.savedState"
+rm -rf "$HOME/Library/Containers/com.notation.app/Data/Library/Saved Application State"
 ```
 
 ## 已知未做（deferred）

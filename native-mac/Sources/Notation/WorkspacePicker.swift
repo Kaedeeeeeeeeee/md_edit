@@ -44,7 +44,7 @@ struct WorkspacePicker: View {
 
             // Title + version
             VStack(spacing: 2) {
-                Text("Marktext Next")
+                Text("Notation")
                     .font(.system(size: 23, weight: .regular))
                 Text("Version \(appVersion)")
                     .font(.system(size: 12))

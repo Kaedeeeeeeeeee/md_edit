@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct MarktextNextApp: App {
+struct NotationApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store: DocumentStore
     @State private var closeGuard: CloseGuard?
@@ -38,7 +38,7 @@ struct MarktextNextApp: App {
         // Main editor window.  Singleton (so state restoration can't
         // multiply it into stale duplicates that race to own the WebView
         // bridge).  Opened by the picker via `openWindow(id: "main")`.
-        Window("Marktext Next", id: "main") {
+        Window("Notation", id: "main") {
             ContentView()
                 .environment(store)
                 .frame(minWidth: 800, minHeight: 520)

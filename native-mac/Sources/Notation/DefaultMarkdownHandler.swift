@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import UniformTypeIdentifiers
 
-/// Manages "Marktext Next is the default app for .md files" registration.
+/// Manages "Notation is the default app for .md files" registration.
 ///
 /// macOS distinguishes between two things:
 ///   1. CFBundleDocumentTypes declarations in our Info.plist, which let us
@@ -38,7 +38,7 @@ enum DefaultMarkdownHandler {
         claimAsDefault()
     }
 
-    /// Unconditional: request that Marktext Next become the default handler
+    /// Unconditional: request that Notation become the default handler
     /// for the markdown UTI.  macOS may show a confirmation prompt the
     /// first time this happens.  Errors are logged but not surfaced — the
     /// user can always set the default manually via Finder ▸ Get Info.

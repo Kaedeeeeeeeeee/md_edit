@@ -1,6 +1,6 @@
-# Marktext Next — native-mac
+# Notation — native-mac
 
-Swift + SwiftUI hybrid build of Marktext Next, targeting **macOS 26+** with
+Swift + SwiftUI hybrid build of Notation, targeting **macOS 26+** with
 real Liquid Glass UI and the App Store as a distribution target.
 
 The editor itself (BlockNote / ProseMirror) still runs inside a `WKWebView`,
@@ -12,8 +12,8 @@ fully native SwiftUI / AppKit using only public APIs.
 ```
 native-mac/
 ├── project.yml            # XcodeGen config — regenerate the .xcodeproj from this
-├── Sources/MarktextNext/
-│   ├── MarktextNextApp.swift   # @main App scene + commands + Settings
+├── Sources/Notation/
+│   ├── NotationApp.swift   # @main App scene + commands + Settings
 │   ├── ContentView.swift       # NavigationSplitView root
 │   ├── SidebarView.swift       # File tree (OutlineGroup)
 │   ├── EditorWebView.swift     # WKWebView host + JS bridge
@@ -21,7 +21,7 @@ native-mac/
 │   ├── Settings.swift          # Settings scene (auto-save, theme)
 │   ├── RecentFiles.swift       # UserDefaults-backed recents
 │   ├── WindowAccessor.swift    # NSWindow delegate for close-confirm
-│   └── MarktextNext.entitlements  # App Sandbox + user-selected files
+│   └── Notation.entitlements  # App Sandbox + user-selected files
 ├── Resources/editor/      # Vite build output (gitignored — regenerate from web/)
 └── web/                   # Minimal React + BlockNote sub-project
     ├── src/
@@ -44,8 +44,8 @@ xcodegen generate
 
 # Build .app
 xcodebuild \
-  -project MarktextNext.xcodeproj \
-  -scheme MarktextNext \
+  -project Notation.xcodeproj \
+  -scheme Notation \
   -configuration Release \
   -derivedDataPath build \
   CODE_SIGN_IDENTITY="-" \
@@ -53,7 +53,7 @@ xcodebuild \
   build
 
 # Launch
-open "build/Build/Products/Release/Marktext Next.app"
+open "build/Build/Products/Release/Notation.app"
 ```
 
 ## Iterate on the editor only

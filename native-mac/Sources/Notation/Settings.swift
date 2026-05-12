@@ -63,7 +63,7 @@ struct SettingsView: View {
                 Section {
                     HStack {
                         Text(isDefaultHandler
-                            ? "Marktext Next is the default app for .md files."
+                            ? "Notation is the default app for .md files."
                             : "Another app is currently the default for .md files.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
@@ -82,7 +82,7 @@ struct SettingsView: View {
                 } header: {
                     Text("File Associations")
                 } footer: {
-                    Text("Set Marktext Next as the system-wide default for double-clicking .md files. macOS may ask you to confirm.")
+                    Text("Set Notation as the system-wide default for double-clicking .md files. macOS may ask you to confirm.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
