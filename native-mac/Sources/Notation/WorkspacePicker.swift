@@ -56,18 +56,18 @@ struct WorkspacePicker: View {
             VStack(spacing: 6) {
                 PillAction(
                     systemImage: "plus.circle",
-                    title: "New File…",
+                    title: "New File",
                     action: newFile
                 )
                 PillAction(
                     systemImage: "folder",
-                    title: "Open Folder…",
+                    title: "Open Folder",
                     action: pickNewFolder,
                     shortcut: ("o", .command)
                 )
                 PillAction(
                     systemImage: "doc",
-                    title: "Open Existing File…",
+                    title: "Open Existing File",
                     action: openExistingFile
                 )
             }
