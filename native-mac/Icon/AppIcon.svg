@@ -1,101 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Marktext Next — app icon source.
-  1024×1024 canvas; macOS-style squircle inset 60px on each side (904×904, rx=200).
+  Notation — app icon source.
+  1024×1024 canvas. Pure white squircle filling the canvas (rx=232,
+  matching the macOS Big Sur+ icon mask), with the Markdown wordmark
+  "M↓" centered. The M reads as high-gloss metallic black with a sharp
+  specular highlight at the top edge; the arrow reads as glossy brand
+  blue with the same. No drop shadow — the specular alone carries the
+  "lit-from-above" 3D feel, giving the glyphs a more "engraved" /
+  "embossed" character than a floating-object look.
 
-  Design: a pure-black squircle is the icon background. A white document
-  sits inside the squircle, perfectly centered (644×644 square, 130px
-  margins on all four sides). Three corners are rounded (rx=142, the
-  same 22% curvature ratio as the outer squircle); the bottom-right is
-  cut diagonally to expose the page back behind it (dark gradient).
+  Renders correctly with rsvg-convert (Cairo-backed, full filter +
+  gradient support); the build script falls back to ImageMagick only
+  if rsvg-convert isn't installed.
 
-  Above the page sits a "folded corner" triangle in medium gray with a
-  soft drop shadow — this is the lifted corner of the page, showing the
-  back side of the paper. Together with the cut behind it, this reads as
-  a real 3D fold rather than just a cut-off corner.
-
-  Top of the page: blue title row + text-cursor bar (thicker than before);
-  three gray body lines (also thicker). The Markdown wordmark "M↓" sits
-  in the lower-left, scaled large for clarity at Dock size.
-
-  Edit colors / geometry / glyph here; run scripts/build-icon.sh to
+  Edit colors / geometry / scale here; run scripts/build-icon.sh to
   regenerate the AppIcon.appiconset PNGs.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" fill="none">
   <defs>
-    <!-- Page back: very dark gradient peeking through the cut -->
-    <linearGradient id="pageBack" x1="730" y1="730" x2="834" y2="834" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#2A2A2D"/>
+    <!-- M: high-gloss metallic-black gradient. Sharp bright specular at
+         the very top edge (#B5B5BA), then a quick drop into the base
+         dark, then a long body to deep black at the bottom. The 4-stop
+         layout produces a clear "lit-from-above" specular highlight
+         instead of a soft top fade. -->
+    <linearGradient id="mFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#B5B5BA"/>
+      <stop offset="6%"   stop-color="#4A4A50"/>
+      <stop offset="18%"  stop-color="#1A1A1D"/>
       <stop offset="100%" stop-color="#000000"/>
     </linearGradient>
 
-    <!-- Folded corner: medium gray gradient — lighter at the lifted tip,
-         darker into the fold (suggests catching ambient light) -->
-    <linearGradient id="foldedCorner" x1="634" y1="634" x2="754" y2="754" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#6A6A6F"/>
-      <stop offset="100%" stop-color="#2C2C30"/>
+    <!-- Down arrow: high-gloss blue gradient. Almost-white specular at
+         top, transitioning through light blue down to brand blue body
+         and deep blue at bottom. Same 4-stop layout as M for visual
+         consistency. -->
+    <linearGradient id="arrowFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#E5F0FF"/>
+      <stop offset="6%"   stop-color="#93C5FD"/>
+      <stop offset="18%"  stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1E3A8A"/>
     </linearGradient>
-
-    <!-- Soft shadow under the folded corner triangle: gives 3D lift -->
-    <filter id="liftShadow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="6"/>
-      <feOffset dx="-2" dy="-2"/>
-      <feComponentTransfer>
-        <feFuncA type="linear" slope="0.5"/>
-      </feComponentTransfer>
-      <feMerge>
-        <feMergeNode/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
   </defs>
 
-  <!-- Pure black squircle background -->
-  <rect x="60" y="60" width="904" height="904" rx="200" fill="#000000"/>
+  <!-- Pure white squircle, fills the entire canvas -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" fill="#FFFFFF"/>
 
-  <!-- Page back: visible only through the cut. Matches the document's
-       would-be rounded bottom-right corner. -->
-  <path d="M 834 634
-           L 834 692
-           A 142 142 0 0 1 692 834
-           L 634 834
-           Z"
-        fill="url(#pageBack)"/>
-
-  <!-- White document. Three rounded corners (rx=142, matching the outer
-       squircle's 22% curvature ratio); bottom-right is cut for the fold. -->
-  <path d="M 190 332
-           A 142 142 0 0 1 332 190
-           L 692 190
-           A 142 142 0 0 1 834 332
-           L 834 634
-           L 634 834
-           L 332 834
-           A 142 142 0 0 1 190 692
-           Z"
-        fill="#FFFFFF"/>
-
-  <!-- Folded corner triangle: the lifted bottom-right corner, showing
-       the back of the page. Sits on top of the document with a soft
-       shadow for 3D depth. -->
-  <polygon points="834,634 634,834 634,634"
-           fill="url(#foldedCorner)"
-           filter="url(#liftShadow)"/>
-
-  <!-- Insertion-point cursor (thicker) -->
-  <rect x="240" y="262" width="16" height="72" rx="4" fill="#2563EB"/>
-
-  <!-- Highlighted title row (thicker) -->
-  <rect x="274" y="272" width="460" height="52" rx="8" fill="#2563EB"/>
-
-  <!-- Body text lines (thicker) -->
-  <rect x="240" y="370" width="480" height="28" rx="8" fill="#D5D9E0"/>
-  <rect x="240" y="414" width="480" height="28" rx="8" fill="#D5D9E0"/>
-  <rect x="240" y="458" width="320" height="28" rx="8" fill="#D5D9E0"/>
-
-  <!-- Markdown wordmark "M↓" -->
-  <g transform="translate(240 622) scale(3.2) translate(-86.38 -178.88)" fill="#18181B">
-    <path d="M 86.38 217.13 V 178.88 H 97.63 L 108.88 192.94 L 120.13 178.88 H 131.38 V 217.13 H 120.13 V 195.19 L 108.88 209.25 L 97.63 195.19 V 217.13 Z"/>
-    <path d="M 156.13 217.69 L 139.25 198 H 150.5 V 178.88 H 161.75 V 198 H 173 Z"/>
+  <!-- Markdown wordmark "M↓" centered: high-gloss gradient fills (no
+       drop shadow — the specular highlight at the top of each glyph
+       carries the 3D feel by itself).
+       Path proportions are Dustin Curtis's Markdown mark (87×39 base);
+       scale 8× → 693×310 mark, centered at (512, 512). -->
+  <g transform="translate(166 357) scale(8) translate(-86.38 -178.88)">
+    <!-- M -->
+    <path d="M 86.38 217.13 V 178.88 H 97.63 L 108.88 192.94 L 120.13 178.88 H 131.38 V 217.13 H 120.13 V 195.19 L 108.88 209.25 L 97.63 195.19 V 217.13 Z"
+          fill="url(#mFill)"/>
+    <!-- Down arrow -->
+    <path d="M 156.13 217.69 L 139.25 198 H 150.5 V 178.88 H 161.75 V 198 H 173 Z"
+          fill="url(#arrowFill)"/>
   </g>
 </svg>
