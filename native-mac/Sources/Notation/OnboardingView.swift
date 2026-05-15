@@ -7,7 +7,7 @@ import AppKit
 ///
 /// Sandbox model: the user grants a parent directory (~/Documents or
 /// iCloud Drive root or any custom folder) via NSOpenPanel, then we create
-/// a "Marktext Notes" subfolder inside (for the recommended options) and
+/// a "Notation Notes" subfolder inside (for the recommended options) and
 /// persist a security-scoped bookmark for that subfolder.  The parent
 /// grant lapses when the panel closes; only the subfolder bookmark
 /// survives across launches.
@@ -65,7 +65,7 @@ struct OnboardingView: View {
                     .interpolation(.high)
                     .frame(width: 72, height: 72)
             }
-            Text("Welcome to Marktext Next")
+            Text("Welcome to Notation")
                 .font(.system(size: 22, weight: .semibold))
             Text("Where would you like to keep your notes?")
                 .font(.system(size: 13))
@@ -80,7 +80,7 @@ struct OnboardingView: View {
             ChoiceRow(
                 icon: "doc.text",
                 title: "Documents folder",
-                subtitle: "~/Documents/Marktext Notes",
+                subtitle: "~/Documents/Notation Notes",
                 badge: "Recommended",
                 isSelected: selection == .documents,
                 isEnabled: true,
@@ -145,15 +145,15 @@ struct OnboardingView: View {
         case .documents:
             requestParentAndCreate(
                 initialURL: userHomeURL().appendingPathComponent("Documents"),
-                subfolderName: "Marktext Notes",
-                message: "Marktext will create a “Marktext Notes” folder inside Documents to store your notes."
+                subfolderName: "Notation Notes",
+                message: "Notation will create a “Notation Notes” folder inside Documents to store your notes."
             )
         case .iCloud:
             let initial = userHomeURL().appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
             requestParentAndCreate(
                 initialURL: initial,
-                subfolderName: "Marktext Notes",
-                message: "Marktext will create a “Marktext Notes” folder in your iCloud Drive."
+                subfolderName: "Notation Notes",
+                message: "Notation will create a “Notation Notes” folder in your iCloud Drive."
             )
         case .custom:
             pickCustomFolder()
@@ -195,7 +195,7 @@ struct OnboardingView: View {
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
         panel.prompt = "Use This Folder"
-        panel.message = "Choose any folder where Marktext should keep your notes."
+        panel.message = "Choose any folder where Notation should keep your notes."
         guard panel.runModal() == .OK, let url = panel.url else {
             DebugLog.write("[onboard] panel cancelled (custom)")
             return

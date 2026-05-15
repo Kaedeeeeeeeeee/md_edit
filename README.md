@@ -1,12 +1,13 @@
-# Marktext Next
+# Notation
 
-Two parallel implementations of a Notion-style markdown editor exploring
-different distribution targets:
+A Notion-style markdown editor for macOS. The active product is the
+native-mac build (**Notation**); the Tauri prototype is preserved as
+historical reference.
 
 | Track | Path | Stack | Distribution | Status |
 |---|---|---|---|---|
-| **Tauri demo** | `./` (root) | Tauri 2 + Rust shell + React/BlockNote in WKWebView | Self-distributed (uses macOS private APIs for transparent window + frosted-glass sidebar) | working, ~10 MB |
-| **Native Mac (App Store target)** | [`native-mac/`](native-mac/) | Swift + SwiftUI + WKWebView for editor | App Store eligible (public APIs only, real macOS 26 Liquid Glass) | working, ~2.7 MB |
+| **Tauri prototype** (legacy, frozen) | `./` (root) | Tauri 2 + Rust shell + React/BlockNote in WKWebView | Self-distributed (uses macOS private APIs for transparent window + frosted-glass sidebar) | working, ~10 MB, originally branded "Marktext Next" |
+| **Notation** (active, App Store target) | [`native-mac/`](native-mac/) | Swift + SwiftUI + WKWebView for editor | App Store eligible (public APIs only, real macOS 26 Liquid Glass) | working, ~2.7 MB |
 
 Both ship the same BlockNote editor for content (slash menu, drag handles,
 block transforms, markdown round-trip via `tryParseMarkdownToBlocks` /
@@ -26,16 +27,16 @@ Output: `src-tauri/target/release/bundle/macos/Marktext-Next-Demo.app`
 
 Requires Node, Rust 1.95+ (pinned in `src-tauri/rust-toolchain.toml`), and Xcode CLT.
 
-### Native Mac track
+### Notation (native Mac track)
 
 See [native-mac/README.md](native-mac/README.md) for the full build chain.
 
 ```bash
 cd native-mac/web && pnpm install && pnpm build && cd ..
 xcodegen generate
-xcodebuild -project MarktextNext.xcodeproj -scheme MarktextNext -configuration Release \
+xcodebuild -project Notation.xcodeproj -scheme Notation -configuration Release \
   -derivedDataPath build CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build
-open "build/Build/Products/Release/Marktext Next.app"
+open "build/Build/Products/Release/Notation.app"
 ```
 
 Requires Xcode 26+, XcodeGen (`brew install xcodegen`), Node, pnpm.

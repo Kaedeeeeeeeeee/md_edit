@@ -56,7 +56,7 @@ enum DocumentDirBookmarks {
         panel.directoryURL = parent
         panel.prompt = "Use This Folder for Images"
         panel.message = "Choose where to save pasted images for “\(fileURL.lastPathComponent)”. " +
-            "Marktext will reuse this folder for other files in the same directory."
+            "Notation will reuse this folder for other files in the same directory."
         guard panel.runModal() == .OK, let url = panel.url else {
             DebugLog.write("[grant] user cancelled for \(fileURL.lastPathComponent)")
             return nil

@@ -1,6 +1,6 @@
-name: MarktextNext
+name: Notation
 options:
-  bundleIdPrefix: com.marktext.next
+  bundleIdPrefix: com.notation
   deploymentTarget:
     macOS: "26.0"
   developmentLanguage: en
@@ -15,24 +15,24 @@ settings:
     DEVELOPMENT_TEAM: "Y4FV6WUU4V"
 
 targets:
-  MarktextNext:
+  Notation:
     type: application
     platform: macOS
     deploymentTarget: "26.0"
     sources:
-      - path: Sources/MarktextNext
+      - path: Sources/Notation
       - path: Resources/editor
         type: folder
         buildPhase: resources
       - path: Assets.xcassets
     info:
-      path: Sources/MarktextNext/Info.plist
+      path: Sources/Notation/Info.plist
       properties:
-        CFBundleDisplayName: "Marktext Next"
-        CFBundleName: "Marktext Next"
+        CFBundleDisplayName: "Notation"
+        CFBundleName: "Notation"
         CFBundleShortVersionString: "0.1"
         CFBundleVersion: "1"
-        CFBundleIdentifier: com.marktext.next.app
+        CFBundleIdentifier: com.notation.app
         LSApplicationCategoryType: public.app-category.productivity
         LSMinimumSystemVersion: "26.0"
         NSPrincipalClass: NSApplication
@@ -65,8 +65,8 @@ targets:
                 - text/markdown
     settings:
       base:
-        PRODUCT_NAME: "Marktext Next"
-        PRODUCT_BUNDLE_IDENTIFIER: com.marktext.next.app
+        PRODUCT_NAME: "Notation"
+        PRODUCT_BUNDLE_IDENTIFIER: com.notation.app
         ENABLE_PREVIEWS: YES
-        CODE_SIGN_ENTITLEMENTS: Sources/MarktextNext/MarktextNext.entitlements
+        CODE_SIGN_ENTITLEMENTS: Sources/Notation/Notation.entitlements
         ENABLE_APP_SANDBOX: YES

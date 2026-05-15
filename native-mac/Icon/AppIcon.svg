@@ -1,60 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Marktext Next — app icon source.
-  1024×1024 canvas; macOS-style rounded squircle (corner radius ~22%).
-  Edit colors, geometry, glyph here; run scripts/build-icon.sh to regenerate
-  the AppIcon.appiconset PNGs.
+  Notation — app icon source.
+  1024×1024 canvas. Pure white squircle filling the canvas (rx=232,
+  matching the macOS Big Sur+ icon mask), with the Markdown wordmark
+  "M↓" centered. The M reads as high-gloss metallic black with a sharp
+  specular highlight at the top edge; the arrow reads as glossy brand
+  blue with the same. No drop shadow — the specular alone carries the
+  "lit-from-above" 3D feel, giving the glyphs a more "engraved" /
+  "embossed" character than a floating-object look.
+
+  Renders correctly with rsvg-convert (Cairo-backed, full filter +
+  gradient support); the build script falls back to ImageMagick only
+  if rsvg-convert isn't installed.
+
+  Edit colors / geometry / scale here; run scripts/build-icon.sh to
+  regenerate the AppIcon.appiconset PNGs.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" fill="none">
   <defs>
-    <!-- Squircle base: soft macOS-blue gradient -->
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#6FB8FF"/>
-      <stop offset="1" stop-color="#0A6CFF"/>
+    <!-- M: high-gloss metallic-black gradient. Sharp bright specular at
+         the very top edge (#B5B5BA), then a quick drop into the base
+         dark, then a long body to deep black at the bottom. The 4-stop
+         layout produces a clear "lit-from-above" specular highlight
+         instead of a soft top fade. -->
+    <linearGradient id="mFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#B5B5BA"/>
+      <stop offset="6%"   stop-color="#4A4A50"/>
+      <stop offset="18%"  stop-color="#1A1A1D"/>
+      <stop offset="100%" stop-color="#000000"/>
     </linearGradient>
 
-    <!-- Subtle inner highlight at the top edge -->
-    <linearGradient id="topHighlight" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="rgba(255,255,255,0.35)"/>
-      <stop offset="1" stop-color="rgba(255,255,255,0)"/>
+    <!-- Down arrow: high-gloss blue gradient. Almost-white specular at
+         top, transitioning through light blue down to brand blue body
+         and deep blue at bottom. Same 4-stop layout as M for visual
+         consistency. -->
+    <linearGradient id="arrowFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#E5F0FF"/>
+      <stop offset="6%"   stop-color="#93C5FD"/>
+      <stop offset="18%"  stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1E3A8A"/>
     </linearGradient>
-
-    <!-- Document drop shadow -->
-    <filter id="docShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
-      <feOffset dx="0" dy="10"/>
-      <feComponentTransfer><feFuncA type="linear" slope="0.18"/></feComponentTransfer>
-      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
   </defs>
 
-  <!-- Squircle background.  Inset 60px on each side so the icon has breathing room
-       within the 1024 canvas (helps with @1x rendering on Dock). -->
-  <rect x="60" y="60" width="904" height="904" rx="200" ry="200" fill="url(#bg)"/>
-  <!-- Top-edge highlight for depth -->
-  <rect x="60" y="60" width="904" height="220" rx="200" ry="200" fill="url(#topHighlight)"/>
+  <!-- Pure white squircle, fills the entire canvas -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" fill="#FFFFFF"/>
 
-  <!-- White document (with shadow). Centered, taller than wide like a page. -->
-  <g filter="url(#docShadow)">
-    <rect x="276" y="218" width="472" height="588" rx="32" ry="32" fill="#FFFFFF"/>
-  </g>
-
-  <!-- Heading line: macOS-blue accent, fuller width -->
-  <rect x="340" y="316" width="316" height="38" rx="8" fill="#0A6CFF"/>
-  <!-- Body lines: soft gray -->
-  <rect x="340" y="394" width="376" height="22" rx="5" fill="#D1D5DB"/>
-  <rect x="340" y="438" width="330" height="22" rx="5" fill="#D1D5DB"/>
-  <rect x="340" y="482" width="392" height="22" rx="5" fill="#D1D5DB"/>
-  <rect x="340" y="526" width="268" height="22" rx="5" fill="#D1D5DB"/>
-
-  <!-- Markdown identifier — stylized "M↓" glyph, bottom-right of document. -->
-  <g transform="translate(516, 622)" fill="none" stroke="#0A6CFF"
-     stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Markdown wordmark "M↓" centered: high-gloss gradient fills (no
+       drop shadow — the specular highlight at the top of each glyph
+       carries the 3D feel by itself).
+       Path proportions are Dustin Curtis's Markdown mark (87×39 base);
+       scale 8× → 693×310 mark, centered at (512, 512). -->
+  <g transform="translate(166 357) scale(8) translate(-86.38 -178.88)">
     <!-- M -->
-    <path d="M 0 120 L 0 0 L 30 0 L 70 75 L 110 0 L 140 0 L 140 120"
-          stroke="#0A6CFF" fill="none"/>
-    <!-- Arrow down -->
-    <path d="M 198 0 L 198 100" />
-    <path d="M 168 70 L 198 105 L 228 70" />
+    <path d="M 86.38 217.13 V 178.88 H 97.63 L 108.88 192.94 L 120.13 178.88 H 131.38 V 217.13 H 120.13 V 195.19 L 108.88 209.25 L 97.63 195.19 V 217.13 Z"
+          fill="url(#mFill)"/>
+    <!-- Down arrow -->
+    <path d="M 156.13 217.69 L 139.25 198 H 150.5 V 178.88 H 161.75 V 198 H 173 Z"
+          fill="url(#arrowFill)"/>
   </g>
 </svg>

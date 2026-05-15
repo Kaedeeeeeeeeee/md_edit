@@ -6,22 +6,34 @@ import AppKit
 struct WindowAccessor: NSViewRepresentable {
     let onAttach: (NSWindow) -> Void
 
-    func makeNSView(context _: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            if let window = view.window {
-                onAttach(window)
-            } else {
-                // Window may not be set yet on first layout pass.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    if let w = view.window { onAttach(w) }
-                }
-            }
-        }
+    func makeNSView(context _: Context) -> AccessorView {
+        let view = AccessorView()
+        view.onAttach = onAttach
         return view
     }
 
-    func updateNSView(_: NSView, context _: Context) {}
+    func updateNSView(_ view: AccessorView, context _: Context) {
+        view.onAttach = onAttach
+        view.attachIfNeeded()
+    }
+
+    final class AccessorView: NSView {
+        var onAttach: ((NSWindow) -> Void)?
+        private var attachedWindowID: ObjectIdentifier?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            attachIfNeeded()
+        }
+
+        func attachIfNeeded() {
+            guard let window else { return }
+            let id = ObjectIdentifier(window)
+            guard attachedWindowID != id else { return }
+            attachedWindowID = id
+            onAttach?(window)
+        }
+    }
 }
 
 /// Intercepts the main editor window's close button.
@@ -46,6 +58,7 @@ final class CloseGuard: NSObject, NSWindowDelegate {
 
     func attach(to window: NSWindow) {
         self.window = window
+        window.isReleasedWhenClosed = false
         window.delegate = self
     }
 

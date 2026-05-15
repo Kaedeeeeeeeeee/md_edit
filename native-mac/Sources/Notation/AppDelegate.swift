@@ -25,21 +25,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Direct NSWindow ref registered by the main scene's `WindowAccessor`
     /// when SwiftUI first instantiates the underlying `NSWindow`.  Used for
     /// reliable show/hide via AppKit, independent of SwiftUI scene state.
-    weak var mainWindow: NSWindow?
+    /// Not weak because the AppKit-fallback `createMainWindow` path is the
+    /// sole owner in that branch and SwiftUI doesn't retain it for us.
+    var mainWindow: NSWindow?
 
     /// URLs that arrived before `store` was wired up (e.g., cold launch).
-    /// Drained from `MarktextNextApp` once the store is attached.
+    /// Drained from `NotationApp` once the store is attached.
     var pendingURLs: [URL] = []
+
+    private var appKitMainCloseGuard: CloseGuard?
 
     func application(_ application: NSApplication, open urls: [URL]) {
         DebugLog.write("[appdelegate] open \(urls.count) URLs")
-        for url in urls {
-            if let store {
-                deliverURL(url, to: store)
-            } else {
-                pendingURLs.append(url)
-            }
-        }
+        openDocuments(at: urls)
+    }
+
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        DebugLog.write("[appdelegate] openFile \(filename)")
+        openDocument(at: URL(fileURLWithPath: filename))
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        DebugLog.write("[appdelegate] openFiles \(filenames.count) files")
+        openDocuments(at: filenames.map { URL(fileURLWithPath: $0) })
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    func openDocument(at url: URL) {
+        openDocuments(at: [url])
     }
 
     /// Dock-icon click with no visible windows: bring the (hidden) main
@@ -48,7 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         if hasVisibleWindows { return true }
         NSApp.activate(ignoringOtherApps: true)
-        if let mainWindow {
+        if let mainWindow = mainWindow ?? findWindow(identifier: .notationMainWindow) {
+            self.mainWindow = mainWindow
             mainWindow.makeKeyAndOrderFront(nil)
             return false
         }
@@ -61,6 +76,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Window registration
 
     func registerMainWindow(_ window: NSWindow) {
+        window.identifier = .notationMainWindow
+        window.isReleasedWhenClosed = false
         mainWindow = window
     }
 
@@ -78,6 +95,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Internals
 
+    private func openDocuments(at urls: [URL]) {
+        for url in urls {
+            if let store {
+                deliverURL(url, to: store)
+            } else {
+                pendingURLs.append(url)
+            }
+        }
+    }
+
     private func deliverURL(_ url: URL, to store: DocumentStore) {
         let needsScope = url.startAccessingSecurityScopedResource()
         defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
@@ -86,22 +113,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Bring the main editor window to the front via direct AppKit calls.
+    /// If SwiftUI hasn't constructed its NSWindow yet (cold-launch via Finder
+    /// open-with), construct one directly via AppKit so the user's file
+    /// shows up immediately rather than racing the scene lifecycle.
     private func presentMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        if let mainWindow {
+        if let mainWindow = mainWindow ?? findWindow(identifier: .notationMainWindow) {
+            self.mainWindow = mainWindow
             mainWindow.makeKeyAndOrderFront(nil)
             return
         }
-        // Cold-launch fallback: the main scene's NSWindow hasn't been
-        // instantiated yet.  Any live SwiftUI scene will observe this and
-        // call `openWindow(id: "main")`.
+
+        if let store {
+            let window = createMainWindow(store: store)
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+
         NotificationCenter.default.post(name: .openMainRequested, object: nil)
     }
+
+    private func findWindow(identifier: NSUserInterfaceItemIdentifier) -> NSWindow? {
+        NSApp.windows.first { $0.identifier == identifier }
+    }
+
+    private func createMainWindow(store: DocumentStore) -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1088, height: 714),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Notation"
+        window.identifier = .notationMainWindow
+        window.minSize = NSSize(width: 800, height: 520)
+        window.toolbarStyle = .unified
+        window.contentView = NSHostingView(
+            rootView: ContentView()
+                .environment(store)
+                .frame(minWidth: 800, minHeight: 520)
+        )
+
+        let guardian = CloseGuard(store: store)
+        guardian.attach(to: window)
+        appKitMainCloseGuard = guardian
+        mainWindow = window
+        window.center()
+        return window
+    }
+}
+
+private extension NSUserInterfaceItemIdentifier {
+    static let notationMainWindow = NSUserInterfaceItemIdentifier("com.notation.window.main")
 }
 
 extension Notification.Name {
     /// Posted by `AppDelegate` when it has a URL to open but can't find an
     /// existing main NSWindow — any SwiftUI scene that's currently alive
     /// can observe this and call `openWindow(id: "main")` to bring it up.
-    static let openMainRequested = Notification.Name("com.marktext.next.openMainRequested")
+    static let openMainRequested = Notification.Name("com.notation.openMainRequested")
 }

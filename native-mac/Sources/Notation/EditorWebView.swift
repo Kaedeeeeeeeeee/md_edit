@@ -166,7 +166,7 @@ struct EditorWebView: NSViewRepresentable {
             // but handle gracefully.
             rejectUpload(
                 requestId: requestId,
-                message: "Save the document first so Marktext knows where to store images."
+                message: "Save the document first so Notation knows where to store images."
             )
         }
 

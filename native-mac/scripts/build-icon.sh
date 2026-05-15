@@ -19,7 +19,15 @@ if [ ! -f "$SVG" ]; then
 fi
 
 echo "→ Rendering $SVG to 1024×1024 PNG…"
-magick -background none -density 384 "$SVG" -resize 1024x1024 "$TMP/icon_1024.png"
+# Prefer rsvg-convert (Cairo-backed, full SVG 1.1 support including gradients
+# and filters). Fall back to ImageMagick, which silently drops feGaussianBlur
+# and mishandles gradients in transformed groups.
+if command -v rsvg-convert >/dev/null 2>&1; then
+  rsvg-convert -w 1024 -h 1024 "$SVG" -o "$TMP/icon_1024.png"
+else
+  echo "  (rsvg-convert not found, falling back to ImageMagick — gradients/filters may not render correctly)"
+  magick -background none -density 384 "$SVG" -resize 1024x1024 "$TMP/icon_1024.png"
+fi
 
 echo "→ Downscaling to all macOS icon sizes…"
 declare -a sizes=(16 32 64 128 256 512 1024)
