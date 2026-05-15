@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy — Notation</title>
+  <meta name="description" content="Notation's privacy policy. We collect nothing. Your files stay on your device. AI features use your own API key." />
+  <meta name="theme-color" content="#FBFBFA" />
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="assets/icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Privacy Policy — Notation" />
+  <meta property="og:description" content="Notation collects nothing. Your files stay on your device." />
+  <meta property="og:image" content="assets/icon.svg" />
+</head>
+<body>
+
+<!-- ============================================================ Nav -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <a href="index.html" class="brand">
+      <span class="brand-icon"><img src="assets/icon.svg" alt="" /></span>
+      <span>Notation</span>
+    </a>
+    <div class="nav-links">
+      <a href="index.html#features">功能</a>
+      <a href="index.html#demo">所见即所得</a>
+      <a href="index.html#pricing">定价</a>
+      <a href="index.html#faq">FAQ</a>
+    </div>
+    <a href="index.html#pricing" class="nav-cta">
+      下载
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 1.5 V8 M3 6 L6 9 L9 6 M2 10.5 H10" />
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<!-- ============================================================ Content -->
+<main>
+  <article class="legal">
+    <h1>Privacy Policy</h1>
+    <p class="effective-date"><strong>Effective date:</strong> 2026-05-14</p>
+
+    <h2>Who we are</h2>
+    <p>
+      Notation is an indie macOS app distributed via the Mac App Store.
+      It's maintained by the project author
+      (<a href="https://github.com/Kaedeeeeeeeeee" rel="noopener">Kaedeeeeeeeeee</a>
+      on GitHub). The fastest way to reach us is to file an issue at
+      <a href="https://github.com/Kaedeeeeeeeeee/md_edit/issues" rel="noopener">our GitHub repo</a>.
+    </p>
+
+    <h2>What we collect</h2>
+    <p>
+      Nothing. The app has no user accounts, doesn't phone home, and we don't run any
+      servers that receive your data.
+    </p>
+
+    <h2>Your files</h2>
+    <p>
+      The app reads and writes only the files and folders you explicitly authorize via
+      macOS's open-file or open-folder dialog. macOS App Sandbox enforces this at the
+      OS level &mdash; the app physically cannot reach anything you haven't granted access to.
+      We persist these authorizations on your device using security-scoped bookmarks
+      so you don't have to re-open the same folder every launch; those bookmarks are
+      stored locally and never transmitted anywhere.
+    </p>
+
+    <h2>AI features and third-party processing</h2>
+    <p>This is the most important section, so we'll be specific.</p>
+    <p>
+      When you opt to use <strong>Ask AI</strong>, <strong>Research</strong>, or
+      <strong>Image Generation</strong>, the text you've selected plus the instruction
+      you typed &mdash; and only those, not your full document, not any other files &mdash;
+      are sent over HTTPS, directly from your device, to the AI provider you configured
+      in <em>Settings &rarr; AI</em>. Supported providers:
+    </p>
+    <ul>
+      <li>
+        <strong>Anthropic Claude</strong> &mdash; governed by
+        <a href="https://www.anthropic.com/legal/privacy" rel="noopener">Anthropic's privacy policy</a>.
+      </li>
+      <li>
+        <strong>OpenAI</strong> and OpenAI-compatible endpoints
+        (DeepSeek, Groq, Together, Fireworks, OpenRouter, local Ollama, and others)
+        &mdash; each governed by its own provider's privacy policy. See
+        <a href="https://openai.com/policies/privacy-policy" rel="noopener">OpenAI's policy</a>
+        as the canonical reference for the OpenAI-compatible shape.
+      </li>
+    </ul>
+    <p>
+      The API key you provide is stored in macOS Keychain on your device only.
+      It is never transmitted to us. We have no way to see it.
+    </p>
+    <p>If you don't use AI features, no network calls related to AI happen at all.</p>
+
+    <h2>Purchases &amp; subscriptions</h2>
+    <p>
+      Notation is free to download from the Mac App Store. Some AI features
+      (Ask AI, Research, Image Generation) require upgrading to Notation Pro
+      via one of three in-app purchases: monthly subscription, yearly
+      subscription, or one-time lifetime purchase.
+    </p>
+    <p>
+      All transactions go through Apple's StoreKit. We never receive your
+      payment information &mdash; not your card number, not your billing
+      address, not your name. Apple handles the entire transaction. We only
+      receive a verified signal that an entitlement is active or inactive
+      for the current device's Apple ID.
+    </p>
+    <p>
+      Locally, we store a single derived flag (&ldquo;is Pro?&rdquo;) plus
+      the tier name (monthly / yearly / lifetime). This is kept in
+      <code>UserDefaults</code> on your device and never transmitted anywhere.
+    </p>
+    <p>
+      To manage or cancel a subscription, visit Apple's standard subscription
+      page at
+      <a href="https://apps.apple.com/account/subscriptions" rel="noopener">apps.apple.com/account/subscriptions</a>.
+      Subscription renewals and refunds are handled by Apple, not us.
+    </p>
+
+    <h2>Analytics, telemetry, ads, tracking</h2>
+    <p>
+      None. Zero. The app makes no analytics calls. We don't embed third-party
+      SDKs that profile or track users.
+    </p>
+
+    <h2>Network access</h2>
+    <p>
+      The app uses network access only for: (a) user-initiated AI calls described
+      above, and (b) standard macOS system services. There is no background data
+      collection.
+    </p>
+
+    <h2>Crash reports</h2>
+    <p>
+      The app doesn't send crash reports to us. macOS may surface system-level crash
+      reports to Apple under your system settings; that is governed by Apple's
+      privacy practices, not ours.
+    </p>
+
+    <h2>Children's privacy</h2>
+    <p>
+      The app isn't directed at children under 13. We don't knowingly collect data
+      from anyone, so there's nothing specific to add about children.
+    </p>
+
+    <h2>Changes to this policy</h2>
+    <p>
+      If anything material changes, we'll update the <em>Effective date</em> at the
+      top and note the change in the GitHub repo's commit history. There's no
+      in-app notification because there's no user account to notify.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      File an issue at
+      <a href="https://github.com/Kaedeeeeeeeeee/md_edit/issues" rel="noopener">https://github.com/Kaedeeeeeeeeee/md_edit/issues</a>.
+    </p>
+  </article>
+</main>
+
+<!-- ============================================================ Footer -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="brand-icon" style="width:22px;height:22px;border-radius:6px;"><img src="assets/icon.svg" alt="" /></span>
+      <span>Notation © <span data-year>2026</span></span>
+    </div>
+    <div class="footer-links">
+      <a href="privacy.html">隐私政策</a>
+      <a href="https://github.com/Kaedeeeeeeeeee/md_edit" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

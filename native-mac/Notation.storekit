@@ -1,0 +1,159 @@
+{
+  "identifier" : "F8E6FACA-1AC2-4FE4-9F2C-87A7C44E2A65",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "68.00",
+      "familyShareable" : false,
+      "internalID" : "NOTATION_LIFETIME",
+      "localizations" : [
+        {
+          "description" : "Unlock all AI features forever. One-time payment, no subscription.",
+          "displayName" : "Notation Pro — Lifetime",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "永久解锁所有 AI 功能。一次买断，无任何订阅。",
+          "displayName" : "Notation Pro — 终身买断",
+          "locale" : "zh_Hans"
+        }
+      ],
+      "productID" : "com.shifengzhang.notation.lifetime",
+      "referenceName" : "Pro Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "0000000000",
+    "_developerTeamID" : "Y4FV6WUU4V",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "zh_Hans",
+    "_storefront" : "CHN",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21478923",
+      "localizations" : [
+        {
+          "description" : "Notation Pro subscription",
+          "displayName" : "Notation Pro",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "Notation Pro 订阅",
+          "displayName" : "Notation Pro",
+          "locale" : "zh_Hans"
+        }
+      ],
+      "name" : "Notation Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "30.00",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "NOTATION_MONTHLY",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Monthly Notation Pro subscription. Auto-renews until cancelled.",
+              "displayName" : "Notation Pro — Monthly",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "月度 Notation Pro 订阅。自动续费，可随时取消。",
+              "displayName" : "Notation Pro — 月订阅",
+              "locale" : "zh_Hans"
+            }
+          ],
+          "productID" : "com.shifengzhang.notation.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "21478923",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : []
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "50.00",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "NOTATION_YEARLY",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Yearly Notation Pro subscription. Auto-renews until cancelled.",
+              "displayName" : "Notation Pro — Yearly",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "年度 Notation Pro 订阅。自动续费，可随时取消。",
+              "displayName" : "Notation Pro — 年订阅",
+              "locale" : "zh_Hans"
+            }
+          ],
+          "productID" : "com.shifengzhang.notation.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Pro Yearly",
+          "subscriptionGroupID" : "21478923",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : []
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

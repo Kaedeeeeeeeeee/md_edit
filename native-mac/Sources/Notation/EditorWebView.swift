@@ -3,6 +3,7 @@ import WebKit
 
 struct EditorWebView: NSViewRepresentable {
     @Environment(DocumentStore.self) private var store
+    @Environment(AgentChatController.self) private var agentChat
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -27,6 +28,12 @@ struct EditorWebView: NSViewRepresentable {
         webView.setValue(false, forKey: "drawsBackground")
 
         context.coordinator.webView = webView
+        // Hand the same WKWebView to the agent's JS bridge so the chat panel
+        // (native SwiftUI) can call into the WebView for editor operations
+        // (insert/replace/get-doc-markdown).
+        agentChat.bridge.webView = webView
+        context.coordinator.registerPageActionObserver()
+        context.coordinator.registerResearchObserver()
 
         let hasIndex = Bundle.main.url(
             forResource: "index",
@@ -68,6 +75,84 @@ struct EditorWebView: NSViewRepresentable {
         private var isReady = false
         private var lastDispatchedEpoch: Int = -1
         private var pending: (epoch: Int, markdown: String)?
+        // Active streaming AI tasks, keyed by JS-supplied requestId. Looked up
+        // from `handleMessage(... "ai-abort")` so the JS side can stop a run.
+        // Main-actor isolated — only touched from `handleMessage` (already on
+        // the main actor) and from the completion callback (which also hops
+        // via `MainActor.run`).
+        private var activeAITasks: [String: Task<Void, Never>] = [:]
+        // `nonisolated(unsafe)` so the implicit-nonisolated `deinit` can read
+        // it to unregister the observer. The token is only mutated from the
+        // main actor (in `registerPageActionObserver`) and only read at
+        // deinit, so racing is not a concern in practice.
+        nonisolated(unsafe) private var pageActionObserver: NSObjectProtocol?
+        nonisolated(unsafe) private var researchObserver: NSObjectProtocol?
+
+        func registerPageActionObserver() {
+            pageActionObserver = NotificationCenter.default.addObserver(
+                forName: .aiPageActionRequested,
+                object: nil,
+                queue: .main
+            ) { [weak self] note in
+                guard let self,
+                      let action = note.userInfo?["action"] as? String else { return }
+                Task { @MainActor in
+                    self.dispatchPageAction(action)
+                }
+            }
+        }
+
+        func registerResearchObserver() {
+            researchObserver = NotificationCenter.default.addObserver(
+                forName: .aiResearchRequested,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                Task { @MainActor in
+                    self.dispatchResearchOpen()
+                }
+            }
+        }
+
+        private func dispatchResearchOpen() {
+            guard let webView else { return }
+            let js = "if (window.editorBridge?.openResearch) { window.editorBridge.openResearch(); }"
+            webView.evaluateJavaScript(js) { _, error in
+                if let error {
+                    DebugLog.write("[research] openResearch evaluateJavaScript failed: \(error)")
+                }
+            }
+        }
+
+        private func dispatchPageAction(_ action: String) {
+            guard let webView else { return }
+            let encoded: String
+            if let data = try? JSONSerialization.data(
+                withJSONObject: [action],
+                options: [.fragmentsAllowed]
+            ),
+               let str = String(data: data, encoding: .utf8) {
+                encoded = String(str.dropFirst().dropLast())
+            } else {
+                encoded = "\"summarize\""
+            }
+            let js = "if (window.editorBridge?.runPageAction) { window.editorBridge.runPageAction(\(encoded)); }"
+            webView.evaluateJavaScript(js) { _, error in
+                if let error {
+                    DebugLog.write("[ai] runPageAction evaluateJavaScript failed: \(error)")
+                }
+            }
+        }
+
+        deinit {
+            if let pageActionObserver {
+                NotificationCenter.default.removeObserver(pageActionObserver)
+            }
+            if let researchObserver {
+                NotificationCenter.default.removeObserver(researchObserver)
+            }
+        }
 
         func syncIfNeeded(epoch: Int, markdown: String) {
             guard epoch != lastDispatchedEpoch else { return }
@@ -98,6 +183,10 @@ struct EditorWebView: NSViewRepresentable {
             switch type {
             case "ready":
                 isReady = true
+                // Push locale first so the editor remounts under the right
+                // dictionary before content arrives — avoids a momentary
+                // English slash menu when launching under zh-Hans.
+                sendSetLocale(currentLocaleCode())
                 if let pending {
                     self.pending = nil
                     sendLoad(pending.markdown)
@@ -119,6 +208,18 @@ struct EditorWebView: NSViewRepresentable {
                 else { return }
                 let ext = (dict["ext"] as? String) ?? "png"
                 handleSaveImage(requestId: requestId, base64: base64, ext: ext)
+            case "ai-request":
+                handleAIRequest(dict)
+            case "ai-abort":
+                handleAIAbort(dict)
+            case "ai-image-request":
+                handleImageRequest(dict)
+            case "ai-research-request":
+                handleResearchRequest(dict)
+            case "ai-provider-probe":
+                handleProviderProbe(dict)
+            case "open-settings":
+                openSettings()
             default:
                 break
             }
@@ -227,6 +328,309 @@ struct EditorWebView: NSViewRepresentable {
             return String(str.dropFirst().dropLast())
         }
 
+        private func handleAIRequest(_ dict: [String: Any]) {
+            guard let requestId = dict["requestId"] as? String else {
+                DebugLog.write("[ai] malformed request — missing requestId")
+                return
+            }
+            let messagesRaw = dict["messages"] as? [[String: Any]]
+            let messages: [(role: String, content: String)]? = messagesRaw.map { array in
+                array.compactMap { item -> (role: String, content: String)? in
+                    guard let r = item["role"] as? String, let c = item["content"] as? String else { return nil }
+                    return (role: r, content: c)
+                }
+            }
+            // Multi-turn calls don't require `prompt`; single-shot calls do.
+            let prompt = (dict["prompt"] as? String) ?? ""
+            if (messages?.isEmpty ?? true) && prompt.isEmpty {
+                DebugLog.write("[ai] malformed request — missing prompt and messages")
+                return
+            }
+            let selected = (dict["selectedMarkdown"] as? String) ?? ""
+            let before = (dict["contextBefore"] as? String) ?? ""
+            let after = (dict["contextAfter"] as? String) ?? ""
+
+            // Pro gating: AI features require an unlocked entitlement.
+            // Send a structured error back through the existing stream-end
+            // channel so the floating AI popup closes gracefully, and post
+            // the paywall request so the main scene's sheet listener pops
+            // the upgrade UI.
+            guard EntitlementState.shared.isPro else {
+                DebugLog.write("[ai] request \(requestId) gated — not Pro")
+                NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
+                sendAIStreamEnd(requestId: requestId, result: .failure(.proRequired))
+                return
+            }
+
+            // If another request already used this id (shouldn't happen — UUIDs
+            // — but defend anyway), cancel the previous one so the dictionary
+            // never leaks a Task.
+            activeAITasks[requestId]?.cancel()
+
+            let task = Task { @MainActor [weak self] in
+                await AIService.shared.runStreamingRequest(
+                    userPrompt: prompt,
+                    selectedMarkdown: selected,
+                    contextBefore: before,
+                    contextAfter: after,
+                    messages: messages,
+                    onDelta: { [weak self] chunk in
+                        self?.sendAIStreamChunk(requestId: requestId, delta: chunk)
+                    },
+                    onComplete: { [weak self] result in
+                        self?.sendAIStreamEnd(requestId: requestId, result: result)
+                        self?.activeAITasks.removeValue(forKey: requestId)
+                    }
+                )
+            }
+            activeAITasks[requestId] = task
+        }
+
+        private func handleAIAbort(_ dict: [String: Any]) {
+            guard let requestId = dict["requestId"] as? String else {
+                DebugLog.write("[ai] malformed abort — missing requestId")
+                return
+            }
+            if let task = activeAITasks.removeValue(forKey: requestId) {
+                DebugLog.write("[ai] aborting request \(requestId)")
+                task.cancel()
+            } else {
+                DebugLog.write("[ai] abort for unknown requestId \(requestId)")
+            }
+        }
+
+        // MARK: - AI image generation
+
+        /// Handles `ai-image-request` messages from JS. Fires the OpenAI image
+        /// API in a detached Task, then hops back to the main actor to push
+        /// the result to JS via `aiImageResponse`.
+        ///
+        /// Unlike text generation we don't track this in `activeAITasks` —
+        /// image generation is single-shot, fast enough not to need an abort,
+        /// and the JS side just shows a spinner until it returns.
+        private func handleImageRequest(_ dict: [String: Any]) {
+            guard let requestId = dict["requestId"] as? String,
+                  let prompt = dict["prompt"] as? String else {
+                DebugLog.write("[ai] image request missing requestId/prompt")
+                return
+            }
+            guard EntitlementState.shared.isPro else {
+                DebugLog.write("[ai] image request \(requestId) gated — not Pro")
+                NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
+                sendImageResponse(requestId: requestId, result: .failure(.proRequired))
+                return
+            }
+            Task { [weak self] in
+                let result = await AIService.shared.runImageGeneration(prompt: prompt)
+                await MainActor.run {
+                    self?.sendImageResponse(requestId: requestId, result: result)
+                }
+            }
+        }
+
+        // MARK: - AI provider probe
+
+        /// Replies with the currently-configured provider and whether a key
+        /// is set for it. Used by the research popup to gate the input form
+        /// without firing a real request first. Cheap synchronous lookup
+        /// against UserDefaults + Keychain.
+        private func handleProviderProbe(_ dict: [String: Any]) {
+            guard let requestId = dict["requestId"] as? String else { return }
+            let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.anthropic.rawValue
+            let provider = AIProvider(rawValue: providerRaw) ?? .anthropic
+            let hasKey = (KeychainStore.load(account: provider.keychainAccount) ?? "").isEmpty == false
+            let payload: [String: Any] = [
+                "provider": provider.rawValue,
+                "hasKey": hasKey,
+            ]
+            guard
+                let idData = try? JSONSerialization.data(
+                    withJSONObject: [requestId], options: [.fragmentsAllowed]
+                ),
+                let idStr = String(data: idData, encoding: .utf8),
+                let payloadData = try? JSONSerialization.data(withJSONObject: payload),
+                let payloadStr = String(data: payloadData, encoding: .utf8),
+                let webView else { return }
+            let idLiteral = String(idStr.dropFirst().dropLast())
+            let js = "if (window.editorBridge?.aiProviderProbeResponse) { window.editorBridge.aiProviderProbeResponse(\(idLiteral), \(payloadStr)); }"
+            webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+
+        // MARK: - AI research
+
+        /// Handles `ai-research-request` messages from JS. Fires the Anthropic
+        /// research call (Claude + web_search) in a detached Task, then hops
+        /// back to the main actor to push the result to JS via
+        /// `aiResearchResponse`. Like image requests, we don't track this in
+        /// `activeAITasks` — research is one-shot, the popup can be closed
+        /// while it runs (Swift just drops the late response on the floor),
+        /// and there's no abort path in v1.
+        private func handleResearchRequest(_ dict: [String: Any]) {
+            guard let requestId = dict["requestId"] as? String,
+                  let query = dict["query"] as? String else {
+                DebugLog.write("[research] missing requestId/query")
+                return
+            }
+            guard EntitlementState.shared.isPro else {
+                DebugLog.write("[research] \(requestId) gated — not Pro")
+                NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
+                sendResearchResponse(requestId: requestId, result: .failure(.proRequired))
+                return
+            }
+            let maxSearches = (dict["maxSearches"] as? Int) ?? 5
+            Task { [weak self] in
+                let result = await AIService.shared.runResearch(query: query, maxSearches: maxSearches)
+                await MainActor.run {
+                    self?.sendResearchResponse(requestId: requestId, result: result)
+                }
+            }
+        }
+
+        private func sendResearchResponse(requestId: String, result: Result<String, AIError>) {
+            guard let webView else { return }
+            let payload: [String: Any]
+            switch result {
+            case .success(let report):
+                payload = [
+                    "ok": true,
+                    "report": report,
+                ]
+            case .failure(let err):
+                payload = [
+                    "ok": false,
+                    "error": err.bridgeCode,
+                    "message": err.userMessage,
+                ]
+            }
+            guard
+                let idData = try? JSONSerialization.data(
+                    withJSONObject: [requestId], options: [.fragmentsAllowed]
+                ),
+                let idStr = String(data: idData, encoding: .utf8),
+                let payloadData = try? JSONSerialization.data(withJSONObject: payload),
+                let payloadStr = String(data: payloadData, encoding: .utf8)
+            else {
+                DebugLog.write("[research] failed to encode response for \(requestId)")
+                return
+            }
+            let idLiteral = String(idStr.dropFirst().dropLast())
+            let js = "if (window.editorBridge?.aiResearchResponse) { window.editorBridge.aiResearchResponse(\(idLiteral), \(payloadStr)); }"
+            webView.evaluateJavaScript(js) { _, error in
+                if let error {
+                    DebugLog.write("[research] evaluateJavaScript aiResearchResponse failed: \(error)")
+                }
+            }
+        }
+
+        private func sendImageResponse(requestId: String, result: Result<URL, AIError>) {
+            guard let webView else { return }
+            let payload: [String: Any]
+            switch result {
+            case .success(let url):
+                payload = [
+                    "ok": true,
+                    "path": url.path,
+                    "url": url.absoluteString,
+                ]
+            case .failure(let err):
+                payload = [
+                    "ok": false,
+                    "error": err.bridgeCode,
+                    "message": err.userMessage,
+                ]
+            }
+            guard
+                let idData = try? JSONSerialization.data(
+                    withJSONObject: [requestId], options: [.fragmentsAllowed]
+                ),
+                let idStr = String(data: idData, encoding: .utf8),
+                let payloadData = try? JSONSerialization.data(withJSONObject: payload),
+                let payloadStr = String(data: payloadData, encoding: .utf8)
+            else {
+                DebugLog.write("[ai] failed to encode image response for \(requestId)")
+                return
+            }
+            let idLiteral = String(idStr.dropFirst().dropLast())
+            let js = "if (window.editorBridge?.aiImageResponse) { window.editorBridge.aiImageResponse(\(idLiteral), \(payloadStr)); }"
+            webView.evaluateJavaScript(js) { _, error in
+                if let error {
+                    DebugLog.write("[ai] evaluateJavaScript aiImageResponse failed: \(error)")
+                }
+            }
+        }
+
+        private func sendAIStreamChunk(requestId: String, delta: String) {
+            guard let webView else { return }
+            // JSON-encode both values via single-element arrays so quoting and
+            // special characters survive the JS interpolation intact.
+            guard
+                let idData = try? JSONSerialization.data(
+                    withJSONObject: [requestId], options: [.fragmentsAllowed]
+                ),
+                let idStr = String(data: idData, encoding: .utf8),
+                let deltaData = try? JSONSerialization.data(
+                    withJSONObject: [delta], options: [.fragmentsAllowed]
+                ),
+                let deltaStr = String(data: deltaData, encoding: .utf8)
+            else {
+                DebugLog.write("[ai] failed to encode stream chunk for \(requestId)")
+                return
+            }
+            let idLiteral = String(idStr.dropFirst().dropLast())
+            let deltaLiteral = String(deltaStr.dropFirst().dropLast())
+            let js = "if (window.editorBridge?.aiStreamChunk) { window.editorBridge.aiStreamChunk(\(idLiteral), \(deltaLiteral)); }"
+            webView.evaluateJavaScript(js) { _, error in
+                if let error {
+                    DebugLog.write("[ai] evaluateJavaScript aiStreamChunk failed: \(error)")
+                }
+            }
+        }
+
+        private func sendAIStreamEnd(requestId: String, result: Result<Void, AIError>) {
+            guard let webView else { return }
+
+            let payload: [String: Any]
+            switch result {
+            case .success:
+                payload = ["ok": true]
+            case .failure(let err):
+                payload = [
+                    "ok": false,
+                    "error": err.bridgeCode,
+                    "message": err.userMessage,
+                ]
+            }
+
+            guard
+                let idData = try? JSONSerialization.data(
+                    withJSONObject: [requestId], options: [.fragmentsAllowed]
+                ),
+                let idStr = String(data: idData, encoding: .utf8),
+                let payloadData = try? JSONSerialization.data(withJSONObject: payload),
+                let payloadStr = String(data: payloadData, encoding: .utf8)
+            else {
+                DebugLog.write("[ai] failed to encode stream end for \(requestId)")
+                return
+            }
+            let idLiteral = String(idStr.dropFirst().dropLast())
+
+            // JSON is a syntactic subset of JS, so the encoded payload is safe
+            // to interpolate directly as an object literal.
+            let js = "if (window.editorBridge?.aiStreamEnd) { window.editorBridge.aiStreamEnd(\(idLiteral), \(payloadStr)); }"
+            webView.evaluateJavaScript(js) { _, error in
+                if let error {
+                    DebugLog.write("[ai] evaluateJavaScript aiStreamEnd failed: \(error)")
+                }
+            }
+        }
+
+        private func openSettings() {
+            // SwiftUI registers the Settings scene under this selector in
+            // macOS 13+; using the dynamic Selector form keeps us robust to
+            // any future renames.
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
+
         // MARK: - WKNavigationDelegate
 
         func webView(
@@ -263,6 +667,35 @@ struct EditorWebView: NSViewRepresentable {
             webView.evaluateJavaScript(js) { _, error in
                 if let error {
                     print("evaluateJavaScript loadMarkdown failed:", error)
+                }
+            }
+        }
+
+        /// Resolves the effective locale for the editor.  Reads
+        /// `Bundle.main.preferredLocalizations` which already reflects any
+        /// `AppleLanguages` override the user set in Settings.
+        private func currentLocaleCode() -> String {
+            Bundle.main.preferredLocalizations.first ?? "en"
+        }
+
+        private func sendSetLocale(_ code: String) {
+            guard let webView else { return }
+            // JSON-encode to escape quotes etc; locale codes are simple but
+            // this keeps the path symmetrical with sendLoad.
+            let encoded: String
+            if let data = try? JSONSerialization.data(
+                withJSONObject: [code],
+                options: [.fragmentsAllowed]
+            ),
+               let str = String(data: data, encoding: .utf8) {
+                encoded = String(str.dropFirst().dropLast())
+            } else {
+                encoded = "\"en\""
+            }
+            let js = "if (window.editorBridge?.setLocale) { window.editorBridge.setLocale(\(encoded)); }"
+            webView.evaluateJavaScript(js) { _, error in
+                if let error {
+                    print("evaluateJavaScript setLocale failed:", error)
                 }
             }
         }

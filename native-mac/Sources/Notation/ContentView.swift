@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(DocumentStore.self) private var store
+    @Environment(AgentChatController.self) private var agentChat
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var didSetInitialVisibility = false
 
@@ -26,6 +27,9 @@ struct ContentView: View {
                 .overlay(alignment: .top) {
                     TitleBarScrollEdge()
                 }
+                .overlay(alignment: .bottomTrailing) {
+                    AgentOverlay()
+                }
                 .navigationTitle(documentTitle)
                 .navigationSubtitle(folderTitle)
                 .toolbar {
@@ -37,7 +41,7 @@ struct ContentView: View {
                         }
                         .keyboardShortcut("s")
                         .disabled(!store.isDirty && store.currentFileURL != nil)
-                        .help(store.isDirty ? "Save (⌘S)" : "No unsaved changes")
+                        .help(store.isDirty ? Text("Save (⌘S)") : Text("No unsaved changes"))
                     }
                 }
         }
@@ -57,6 +61,15 @@ struct ContentView: View {
                !url.path.hasPrefix(folder.path) {
                 columnVisibility = .detailOnly
             }
+            agentChat.bind(to: store.currentFileURL)
+        }
+        .onChange(of: store.currentFileURL) { _, newURL in
+            // Re-hydrate the per-document chat history whenever the open
+            // document changes (workspace navigation, recent file, etc).
+            agentChat.bind(to: newURL)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .aiAgentToggleRequested)) { _ in
+            agentChat.toggle()
         }
     }
 

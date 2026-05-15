@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Notation — app icon source.
+  1024×1024 canvas. Pure white squircle filling the canvas (rx=232,
+  matching the macOS Big Sur+ icon mask), with the Markdown wordmark
+  "M↓" centered. The M reads as high-gloss metallic black with a sharp
+  specular highlight at the top edge; the arrow reads as glossy brand
+  blue with the same. No drop shadow — the specular alone carries the
+  "lit-from-above" 3D feel, giving the glyphs a more "engraved" /
+  "embossed" character than a floating-object look.
+
+  Renders correctly with rsvg-convert (Cairo-backed, full filter +
+  gradient support); the build script falls back to ImageMagick only
+  if rsvg-convert isn't installed.
+
+  Edit colors / geometry / scale here; run scripts/build-icon.sh to
+  regenerate the AppIcon.appiconset PNGs.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" fill="none">
+  <defs>
+    <!-- M: high-gloss metallic-black gradient. Sharp bright specular at
+         the very top edge (#B5B5BA), then a quick drop into the base
+         dark, then a long body to deep black at the bottom. The 4-stop
+         layout produces a clear "lit-from-above" specular highlight
+         instead of a soft top fade. -->
+    <linearGradient id="mFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#B5B5BA"/>
+      <stop offset="6%"   stop-color="#4A4A50"/>
+      <stop offset="18%"  stop-color="#1A1A1D"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+
+    <!-- Down arrow: high-gloss blue gradient. Almost-white specular at
+         top, transitioning through light blue down to brand blue body
+         and deep blue at bottom. Same 4-stop layout as M for visual
+         consistency. -->
+    <linearGradient id="arrowFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#E5F0FF"/>
+      <stop offset="6%"   stop-color="#93C5FD"/>
+      <stop offset="18%"  stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1E3A8A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Pure white squircle, fills the entire canvas -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" fill="#FFFFFF"/>
+
+  <!-- Markdown wordmark "M↓" centered: high-gloss gradient fills (no
+       drop shadow — the specular highlight at the top of each glyph
+       carries the 3D feel by itself).
+       Path proportions are Dustin Curtis's Markdown mark (87×39 base);
+       scale 8× → 693×310 mark, centered at (512, 512). -->
+  <g transform="translate(166 357) scale(8) translate(-86.38 -178.88)">
+    <!-- M -->
+    <path d="M 86.38 217.13 V 178.88 H 97.63 L 108.88 192.94 L 120.13 178.88 H 131.38 V 217.13 H 120.13 V 195.19 L 108.88 209.25 L 97.63 195.19 V 217.13 Z"
+          fill="url(#mFill)"/>
+    <!-- Down arrow -->
+    <path d="M 156.13 217.69 L 139.25 198 H 150.5 V 178.88 H 161.75 V 198 H 173 Z"
+          fill="url(#arrowFill)"/>
+  </g>
+</svg>

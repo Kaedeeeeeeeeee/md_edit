@@ -1,5 +1,16 @@
 import SwiftUI
 
+extension Notification.Name {
+    static let aiPageActionRequested = Notification.Name("aiPageActionRequested")
+    static let aiAgentToggleRequested = Notification.Name("aiAgentToggleRequested")
+    static let aiResearchRequested = Notification.Name("aiResearchRequested")
+    /// Posted from anywhere when an AI action is attempted while the user
+    /// is not Pro. The paywall sheet (mounted in the main editor window)
+    /// listens for this and presents itself immediately, regardless of
+    /// the cold-launch 24h cooldown.
+    static let proPaywallRequested = Notification.Name("proPaywallRequested")
+}
+
 @main
 struct NotationApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -8,10 +19,31 @@ struct NotationApp: App {
     @State private var didAttachDelegate = false
     @State private var recentURLs: [URL] = RecentFiles.shared.urls
     @State private var recentWorkspaces: [(url: URL, displayName: String)] = WorkspaceBookmark.recentWorkspaces()
+    // Shared with EditorWebView so the WKWebView reference can be threaded in
+    // when the view materializes. Owned at App-level so it survives across
+    // editor remounts (e.g. workspace switch) and the chat controller can keep
+    // pointing at it.
+    @State private var editorBridge: EditorJSBridge
+    @State private var agentChat: AgentChatController
+    // Paywall infrastructure. `paywallStore` owns the StoreKit observer
+    // task for the App's entire lifetime; `showPaywall` toggles the sheet
+    // on the main editor window.
+    @State private var paywallStore: PaywallStore
+    @State private var showPaywall: Bool = false
+    // Held as @State so SwiftUI re-renders Commands / menus when isPro flips
+    // (e.g., after a successful purchase, "Upgrade…" hides and "Manage
+    // Subscription" appears without requiring an app relaunch).
+    @State private var entitlement: EntitlementState = EntitlementState.shared
 
     init() {
         let store = DocumentStore()
         _store = State(initialValue: store)
+        let bridge = EditorJSBridge()
+        _editorBridge = State(initialValue: bridge)
+        _agentChat = State(initialValue: AgentChatController(bridge: bridge))
+        _paywallStore = State(initialValue: PaywallStore())
+        // All stored properties must be initialized before we can call into
+        // `appDelegate` (using `self` is otherwise rejected).
         appDelegate.attach(store: store)
     }
 
@@ -19,6 +51,9 @@ struct NotationApp: App {
         Window("Notation", id: "main") {
             ContentView()
                 .environment(store)
+                .environment(agentChat)
+                .environment(paywallStore)
+                .environment(EntitlementState.shared)
                 .frame(minWidth: 800, minHeight: 520)
                 .background(
                     WindowAccessor { window in
@@ -36,11 +71,51 @@ struct NotationApp: App {
                 }
                 .modifier(OpenURLForwarder(store: store))
                 .modifier(AppDelegateAttacher(store: store, didAttach: $didAttachDelegate))
+                // Paywall mount: cold-launch trigger waits for StoreKit to
+                // settle (initialize is idempotent) before deciding, so we
+                // never flash the sheet to an already-Pro user.
+                .task {
+                    await paywallStore.initialize()
+                    if PaywallTrigger.shouldShowOnLaunch() {
+                        showPaywall = true
+                    }
+                }
+                // Any AI gate failing posts this; opens the sheet immediately
+                // regardless of the 24h cooldown (the explicit AI attempt is
+                // the user's signal that they want to upgrade).
+                .onReceive(NotificationCenter.default.publisher(for: .proPaywallRequested)) { _ in
+                    showPaywall = true
+                }
+                .sheet(isPresented: $showPaywall) {
+                    PaywallView()
+                        .environment(paywallStore)
+                        .environment(EntitlementState.shared)
+                }
         }
         .handlesExternalEvents(matching: ["*"])
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
         .commands {
+            // Pro / subscription management items, near the top of the
+            // application menu so they're easy to find.
+            CommandGroup(after: .appInfo) {
+                if !entitlement.isPro {
+                    Button("升级 Notation…") {
+                        NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
+                    }
+                } else if entitlement.activeTier?.isSubscription == true {
+                    Button("管理订阅…") {
+                        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                }
+                Button("恢复购买") {
+                    Task { try? await paywallStore.restore() }
+                }
+                Divider()
+            }
+
             CommandGroup(replacing: .newItem) {
                 Button("New") { store.newDocument() }
                     .keyboardShortcut("n")
@@ -111,11 +186,61 @@ struct NotationApp: App {
                 .keyboardShortcut("r")
                 .disabled(store.folderURL == nil)
             }
+
+            CommandMenu("AI") {
+                // Toggle Assistant is intentionally NOT gated — opening the
+                // sidebar UI alone makes no AI call. The first send() inside
+                // AgentChatController is where Pro is enforced.
+                Button("Toggle AI Assistant") {
+                    NotificationCenter.default.post(name: .aiAgentToggleRequested, object: nil)
+                }
+                .keyboardShortcut("j", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Summarize Page") {
+                    triggerPageAction("summarize")
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift, .option])
+
+                Button("Translate Page…") {
+                    triggerPageAction("translate")
+                }
+
+                Divider()
+
+                Button("Research…") {
+                    guard requireProOrShowPaywall() else { return }
+                    NotificationCenter.default.post(name: .aiResearchRequested, object: nil)
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift, .option])
+            }
         }
 
         Settings {
             SettingsView()
+                .environment(EntitlementState.shared)
+                .environment(paywallStore)
         }
+    }
+
+    private func triggerPageAction(_ action: String) {
+        guard requireProOrShowPaywall() else { return }
+        NotificationCenter.default.post(
+            name: .aiPageActionRequested,
+            object: nil,
+            userInfo: ["action": action]
+        )
+    }
+
+    /// Returns true if the user has Pro and the action should proceed.
+    /// Returns false and posts `.proPaywallRequested` otherwise.
+    /// Use as a guard at the top of every Pro-only action.
+    @discardableResult
+    private func requireProOrShowPaywall() -> Bool {
+        if EntitlementState.shared.isPro { return true }
+        NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
+        return false
     }
 }
 

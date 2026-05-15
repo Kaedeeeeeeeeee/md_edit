@@ -69,12 +69,12 @@ final class CloseGuard: NSObject, NSWindowDelegate {
         // scene from scratch.
         if store.isDirty {
             let alert = NSAlert()
-            alert.messageText = "You have unsaved changes."
-            alert.informativeText = "Do you want to save before closing?"
+            alert.messageText = String(localized: "You have unsaved changes.")
+            alert.informativeText = String(localized: "Do you want to save before closing?")
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "Save")
-            alert.addButton(withTitle: "Cancel")
-            alert.addButton(withTitle: "Don’t Save")
+            alert.addButton(withTitle: String(localized: "Save"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
+            alert.addButton(withTitle: String(localized: "Don’t Save"))
 
             switch alert.runModal() {
             case .alertFirstButtonReturn: // Save

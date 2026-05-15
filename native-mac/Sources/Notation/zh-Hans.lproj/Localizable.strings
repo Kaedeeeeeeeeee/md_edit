@@ -1,0 +1,121 @@
+/* Notation — 简体中文翻译。
+   Key = SwiftUI 源码里写的英文字面量（含 …、""、'' 等真实字符）。
+   修改源码字面量时记得同步这里的 key。 */
+
+
+// MARK: - Window titles (NotationApp.swift)
+
+"Open Workspace" = "打开工作区";
+// "Notation" 是应用名，按用户要求不译
+
+
+// MARK: - File menu (NotationApp.swift)
+
+"New" = "新建";
+"Open Folder…" = "打开文件夹…";
+"Open File…" = "打开文件…";
+"Switch Workspace…" = "切换工作区…";
+"Open Recent Folder" = "最近打开的文件夹";
+"No recent folders" = "无最近文件夹";
+"Open Recent File" = "最近打开的文件";
+"No recent files" = "无最近文件";
+"Clear Menu" = "清除菜单";
+"Save" = "保存";
+"Save As…" = "另存为…";
+"Refresh File Tree" = "刷新文件树";
+
+
+// MARK: - WorkspacePicker.swift
+
+"Version %@" = "版本 %@";
+"New File" = "新建文件";
+"Open Folder" = "打开文件夹";
+"Open Existing File" = "打开已有文件";
+"Show on launch" = "启动时显示";
+"No recent workspaces" = "没有最近的工作区";
+"Open a folder to get started." = "打开一个文件夹开始使用。";
+"Choose a Workspace Folder" = "选择工作区文件夹";
+"Open Markdown File" = "打开 Markdown 文件";
+
+
+// MARK: - ContentView.swift toolbar
+
+"Save (⌘S)" = "保存（⌘S）";
+"No unsaved changes" = "没有未保存的更改";
+
+
+// MARK: - SidebarView.swift
+
+"New File in workspace" = "在工作区新建文件";
+"New File…" = "新建文件…";
+"New Folder…" = "新建文件夹…";
+"Reveal in Finder" = "在 Finder 中显示";
+"Rename…" = "重命名…";
+"Move to Trash" = "移到废纸篓";
+"No folder open" = "未打开任何文件夹";
+
+
+// MARK: - Settings.swift
+
+"General" = "通用";
+"Appearance" = "外观";
+"Theme" = "主题";
+"Match System" = "跟随系统";
+"Light" = "浅色";
+"Dark" = "深色";
+
+"Save automatically while editing" = "编辑时自动保存";
+"Save after" = "延迟";
+"Auto-Save" = "自动保存";
+"Auto-save only writes when the document already has a file path. New documents must be saved manually first." = "自动保存仅在文档已有文件路径时生效。新文档需先手动保存一次。";
+
+"Recent Files" = "最近的文件";
+"Clear Recent Files" = "清除最近的文件";
+
+"File Associations" = "文件关联";
+"Notation is the default app for .md files." = "Notation 是 .md 文件的默认应用。";
+"Another app is currently the default for .md files." = "目前 .md 文件的默认应用是其他程序。";
+"Make Default" = "设为默认";
+"Set Notation as the system-wide default for double-clicking .md files. macOS may ask you to confirm." = "把 Notation 设为系统中双击 .md 文件时的默认应用。macOS 可能会要求你确认。";
+
+// Language section (new)
+"Language" = "语言";
+"English" = "English";
+// "简体中文" 永远显示中文，无需翻译
+
+
+// MARK: - Settings restart prompt (new)
+
+"Restart Notation to apply language change" = "需要重启 Notation 才能切换语言";
+"The new language will take effect after the app restarts." = "新语言将在 Notation 重新启动后生效。";
+"Restart Now" = "立即重启";
+"Later" = "稍后";
+
+
+// MARK: - DocumentStore.swift — alerts
+
+"You have unsaved changes." = "有未保存的更改。";
+"Discard them and continue?" = "放弃这些更改并继续？";
+"Discard" = "放弃";
+"Cancel" = "取消";
+"OK" = "好";
+
+"Move “%@” to the Trash?" = "将 “%@” 移到废纸篓？";
+"You can restore it from the Trash if needed." = "需要时可以从废纸篓恢复。";
+
+"Failed to open file" = "打开文件失败";
+"Failed to save" = "保存失败";
+"Failed to create file" = "创建文件失败";
+"Failed to create folder" = "创建文件夹失败";
+"Failed to rename" = "重命名失败";
+"Failed to move to Trash" = "移到废纸篓失败";
+
+// promptForName 标题
+"Rename" = "重命名";
+"New Folder" = "新建文件夹";
+
+
+// MARK: - WindowAccessor.swift — close confirmation
+
+"Do you want to save before closing?" = "关闭前是否要保存？";
+"Don’t Save" = "不保存";

@@ -25,9 +25,14 @@
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.notation.app</string>
+	<string>com.shifengzhang.notation</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh-Hans</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>Notation</string>
 	<key>CFBundlePackageType</key>
@@ -36,12 +41,14 @@
 	<string>0.1</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>NSHumanReadableCopyright</key>
-	<string></string>
+	<string>© 2026 Notation</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>UTImportedTypeDeclarations</key>

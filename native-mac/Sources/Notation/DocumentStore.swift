@@ -243,7 +243,7 @@ final class DocumentStore {
             DebugLog.write("[loadFile] success len=\(content.count)")
         } catch {
             DebugLog.write("[loadFile] FAILED \(error.localizedDescription)")
-            presentAlert("Failed to open file", error.localizedDescription)
+            presentAlert(String(localized: "Failed to open file"), error.localizedDescription)
         }
     }
 
@@ -273,18 +273,18 @@ final class DocumentStore {
             RecentFiles.shared.push(url)
             if folderURL != nil { rebuildFileTree() }
         } catch {
-            presentAlert("Failed to save", error.localizedDescription)
+            presentAlert(String(localized: "Failed to save"), error.localizedDescription)
         }
     }
 
     private func confirmDiscardIfDirty() -> Bool {
         guard isDirty else { return true }
         let alert = NSAlert()
-        alert.messageText = "You have unsaved changes."
-        alert.informativeText = "Discard them and continue?"
+        alert.messageText = String(localized: "You have unsaved changes.")
+        alert.informativeText = String(localized: "Discard them and continue?")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Discard")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Discard"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn
     }
 
@@ -305,7 +305,7 @@ final class DocumentStore {
         let dir = parent ?? folderURL
         guard let dir else { return nil }
         guard let name = promptForName(
-            title: "New File",
+            title: String(localized: "New File"),
             placeholder: "Untitled.md",
             defaultValue: "Untitled.md"
         ), !name.isEmpty else { return nil }
@@ -317,7 +317,7 @@ final class DocumentStore {
             loadFile(url)
             return url
         } catch {
-            presentAlert("Failed to create file", error.localizedDescription)
+            presentAlert(String(localized: "Failed to create file"), error.localizedDescription)
             return nil
         }
     }
@@ -327,7 +327,7 @@ final class DocumentStore {
         let dir = parent ?? folderURL
         guard let dir else { return nil }
         guard let name = promptForName(
-            title: "New Folder",
+            title: String(localized: "New Folder"),
             placeholder: "Untitled Folder",
             defaultValue: "Untitled Folder"
         ), !name.isEmpty else { return nil }
@@ -337,14 +337,14 @@ final class DocumentStore {
             rebuildFileTree()
             return url
         } catch {
-            presentAlert("Failed to create folder", error.localizedDescription)
+            presentAlert(String(localized: "Failed to create folder"), error.localizedDescription)
             return nil
         }
     }
 
     func rename(_ url: URL) {
         guard let newName = promptForName(
-            title: "Rename",
+            title: String(localized: "Rename"),
             placeholder: url.lastPathComponent,
             defaultValue: url.lastPathComponent
         ), !newName.isEmpty, newName != url.lastPathComponent else { return }
@@ -356,17 +356,18 @@ final class DocumentStore {
             }
             rebuildFileTree()
         } catch {
-            presentAlert("Failed to rename", error.localizedDescription)
+            presentAlert(String(localized: "Failed to rename"), error.localizedDescription)
         }
     }
 
     func delete(_ url: URL) {
         let alert = NSAlert()
-        alert.messageText = "Move “\(url.lastPathComponent)” to the Trash?"
-        alert.informativeText = "You can restore it from the Trash if needed."
+        let fileName = url.lastPathComponent
+        alert.messageText = String(localized: "Move “\(fileName)” to the Trash?")
+        alert.informativeText = String(localized: "You can restore it from the Trash if needed.")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Move to Trash")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Move to Trash"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
@@ -381,7 +382,7 @@ final class DocumentStore {
             }
             rebuildFileTree()
         } catch {
-            presentAlert("Failed to move to Trash", error.localizedDescription)
+            presentAlert(String(localized: "Failed to move to Trash"), error.localizedDescription)
         }
     }
 
@@ -474,8 +475,8 @@ final class DocumentStore {
         let alert = NSAlert()
         alert.messageText = title
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "OK"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
         field.placeholderString = placeholder
         field.stringValue = defaultValue

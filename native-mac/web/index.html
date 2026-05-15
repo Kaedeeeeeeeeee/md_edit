@@ -29,6 +29,81 @@
         padding: 24px 0;
       }
 
+      /* ===== iA Writer–style breathing caret =====
+         The native browser caret is hidden entirely — our <CursorHalo>
+         renders the cursor itself, which lets us keep a uniform height
+         regardless of font run (English vs CJK). This is the same
+         approach CodeMirror's `drawSelection` extension takes.
+         IME compatibility relies on the halo measuring position via
+         `window.getSelection().getRangeAt(0)`, which the browser updates
+         live during composition — so the halo follows pinyin/IME input
+         even with the native caret invisible. */
+      .bn-editor,
+      .bn-editor *,
+      [contenteditable="true"],
+      [contenteditable="true"] * {
+        caret-color: transparent;
+      }
+      .lg-cursor-halo {
+        position: fixed;
+        width: 2px;
+        /* Fully-opaque blue center so the OS caret's 530ms blink can never
+           reveal the page background during its OFF phase. The opacity
+           keyframe below modulates visibility; the box-shadow keyframe
+           provides the surrounding glow. */
+        background: #0a84ff;
+        border-radius: 2px;
+        pointer-events: none;
+        z-index: 50;
+        will-change: opacity, box-shadow;
+        animation: lg-cursor-breathe 1.4s ease-in-out infinite;
+      }
+      @keyframes lg-cursor-breathe {
+        0%, 100% {
+          opacity: 0;
+          box-shadow:
+            0 0 0 0 rgba(10, 132, 255, 0),
+            0 0 0 0 rgba(10, 132, 255, 0);
+        }
+        50% {
+          opacity: 1;
+          box-shadow:
+            0 0 10px 2px rgba(10, 132, 255, 0.7),
+            0 0 22px 4px rgba(10, 132, 255, 0.28);
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        .bn-editor,
+        .bn-editor *,
+        [contenteditable="true"],
+        [contenteditable="true"] * {
+          caret-color: transparent;
+        }
+        .lg-cursor-halo {
+          background: #64b0ff;
+        }
+        @keyframes lg-cursor-breathe {
+          0%, 100% {
+            opacity: 0;
+            box-shadow:
+              0 0 0 0 rgba(100, 176, 255, 0),
+              0 0 0 0 rgba(100, 176, 255, 0);
+          }
+          50% {
+            opacity: 1;
+            box-shadow:
+              0 0 10px 2px rgba(100, 176, 255, 0.8),
+              0 0 24px 5px rgba(100, 176, 255, 0.34);
+          }
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .lg-cursor-halo {
+          animation: none;
+          opacity: 0.7;
+        }
+      }
+
       /* Math block (custom) */
       .math-block {
         margin: 4px 0;
@@ -92,6 +167,583 @@
         }
         :root {
           color: #f2f2f7;
+        }
+      }
+
+      /* ===== Liquid Glass formatting toolbar ===== */
+      .lg-toolbar-root {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px;
+        background: rgba(245, 245, 247, 0.78);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+        backdrop-filter: blur(28px) saturate(180%);
+        border-radius: 10px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        box-shadow:
+          inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
+          0 0 0 0.5px rgba(0, 0, 0, 0.04),
+          0 8px 24px rgba(0, 0, 0, 0.16),
+          0 2px 6px rgba(0, 0, 0, 0.08);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Helvetica Neue", Arial, sans-serif;
+        font-size: 13px;
+        color: rgba(0, 0, 0, 0.88);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Neutralize Mantine button skin inside our toolbar */
+      .lg-toolbar-root button,
+      .lg-toolbar-root [role="button"] {
+        background: transparent !important;
+        border: none !important;
+        border-radius: 6px !important;
+        box-shadow: none !important;
+        color: rgba(0, 0, 0, 0.78) !important;
+        min-width: 28px !important;
+        height: 28px !important;
+        padding: 0 6px !important;
+        transition: background-color 80ms ease;
+      }
+      .lg-toolbar-root button:hover,
+      .lg-toolbar-root [role="button"]:hover {
+        background: rgba(0, 0, 0, 0.06) !important;
+      }
+      /* Active / selected state (Mantine uses data-selected or aria-pressed) */
+      .lg-toolbar-root button[data-selected="true"],
+      .lg-toolbar-root button[aria-pressed="true"],
+      .lg-toolbar-root button[data-active="true"] {
+        background: rgba(0, 0, 0, 0.1) !important;
+        color: rgba(0, 0, 0, 0.92) !important;
+      }
+      .lg-toolbar-root button[data-selected="true"]:hover,
+      .lg-toolbar-root button[aria-pressed="true"]:hover,
+      .lg-toolbar-root button[data-active="true"]:hover {
+        background: rgba(0, 0, 0, 0.12) !important;
+      }
+      .lg-toolbar-root button:disabled,
+      .lg-toolbar-root button[data-disabled="true"] {
+        opacity: 0.35 !important;
+        cursor: default !important;
+      }
+      .lg-toolbar-root button:disabled:hover,
+      .lg-toolbar-root button[data-disabled="true"]:hover {
+        background: transparent !important;
+      }
+
+      /* Block-type select (the H2/Heading 2 dropdown on the left) */
+      .lg-toolbar-root .bn-select,
+      .lg-toolbar-root [class*="Select"] {
+        background: transparent !important;
+        border: none !important;
+      }
+      .lg-toolbar-root .bn-select button,
+      .lg-toolbar-root [class*="Select"] button {
+        min-width: auto !important;
+        padding: 0 8px !important;
+        gap: 4px !important;
+      }
+
+      /* Hairline divider between button groups (Mantine renders these as <hr> or <div role="separator">) */
+      .lg-toolbar-root hr,
+      .lg-toolbar-root [role="separator"] {
+        width: 1px !important;
+        height: 16px !important;
+        margin: 0 4px !important;
+        background: rgba(0, 0, 0, 0.1) !important;
+        border: none !important;
+      }
+
+      /* SVG icons inside buttons follow text color */
+      .lg-toolbar-root button svg {
+        width: 16px;
+        height: 16px;
+        color: inherit;
+      }
+
+      /* ===== Liquid Glass slash menu ===== */
+      .lg-slash-root {
+        background: rgba(245, 245, 247, 0.78);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+        backdrop-filter: blur(28px) saturate(180%);
+        border-radius: 12px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        box-shadow:
+          inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
+          0 0 0 0.5px rgba(0, 0, 0, 0.04),
+          0 12px 32px rgba(0, 0, 0, 0.18),
+          0 2px 6px rgba(0, 0, 0, 0.08);
+        width: 280px;
+        max-height: inherit;
+        overflow-y: auto;
+        padding: 6px;
+        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Helvetica Neue", Arial, sans-serif;
+        font-size: 13px;
+        color: rgba(0, 0, 0, 0.88);
+        -webkit-font-smoothing: antialiased;
+      }
+      .lg-slash-root::-webkit-scrollbar {
+        width: 6px;
+      }
+      .lg-slash-root::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 3px;
+      }
+      .lg-slash-label {
+        padding: 8px 10px 4px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: rgba(60, 60, 67, 0.55);
+        user-select: none;
+      }
+      .lg-slash-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 36px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        cursor: default;
+        user-select: none;
+        transition: background-color 60ms ease;
+      }
+      .lg-slash-item:hover {
+        background-color: rgba(0, 0, 0, 0.06);
+      }
+      .lg-slash-item[data-selected] {
+        background-color: rgba(0, 0, 0, 0.08);
+      }
+      .lg-slash-item[data-selected]:hover {
+        background-color: rgba(0, 0, 0, 0.08);
+      }
+      /* Pinned "Ask AI" chip at the top of the slash menu. Styled like an item
+         but with a subtle accent so it reads as a feature, and crucially is
+         NOT part of the keyboard-navigable item list — pressing Enter on a
+         freshly opened menu still selects the first regular item (Heading 1). */
+      .lg-slash-pinned {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 36px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        margin-bottom: 4px;
+        background: rgba(10, 132, 255, 0.08);
+        border: none;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      .lg-slash-pinned:hover {
+        background: rgba(10, 132, 255, 0.14);
+      }
+      .lg-slash-pinned[data-selected] {
+        background: rgba(10, 132, 255, 0.20);
+      }
+      .lg-slash-pinned[data-selected]:hover {
+        background: rgba(10, 132, 255, 0.22);
+      }
+      .lg-slash-pinned .lg-slash-icon {
+        color: rgba(10, 132, 255, 0.95);
+      }
+      .lg-slash-icon {
+        flex-shrink: 0;
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.6);
+        border: 0.5px solid rgba(0, 0, 0, 0.06);
+        border-radius: 6px;
+        color: rgba(0, 0, 0, 0.7);
+        font-size: 16px;
+      }
+      .lg-slash-icon > svg {
+        width: 16px;
+        height: 16px;
+      }
+      .lg-slash-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .lg-slash-title {
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 16px;
+        color: rgba(0, 0, 0, 0.88);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .lg-slash-subtext {
+        font-size: 11px;
+        line-height: 14px;
+        color: rgba(60, 60, 67, 0.6);
+        margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .lg-slash-badge {
+        flex-shrink: 0;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 16px;
+        letter-spacing: 0.01em;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.06);
+        color: rgba(0, 0, 0, 0.55);
+        white-space: nowrap;
+      }
+      .lg-slash-empty {
+        padding: 14px 10px;
+        text-align: center;
+        font-size: 12px;
+        color: rgba(60, 60, 67, 0.55);
+      }
+      .lg-slash-loader {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+        padding: 10px 0;
+      }
+      .lg-slash-loader span {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.3);
+        animation: lg-slash-dot 1s infinite ease-in-out;
+      }
+      .lg-slash-loader span:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+      .lg-slash-loader span:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+      @keyframes lg-slash-dot {
+        0%,
+        80%,
+        100% {
+          opacity: 0.3;
+          transform: scale(0.8);
+        }
+        40% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .lg-slash-root {
+          background: rgba(36, 36, 38, 0.72);
+          border-color: rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.92);
+          box-shadow:
+            inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+            0 0 0 0.5px rgba(0, 0, 0, 0.5),
+            0 14px 36px rgba(0, 0, 0, 0.5),
+            0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .lg-slash-root::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.18);
+        }
+        .lg-slash-label {
+          color: rgba(235, 235, 245, 0.45);
+        }
+        .lg-slash-item:hover {
+          background-color: rgba(255, 255, 255, 0.08);
+        }
+        .lg-slash-item[data-selected] {
+          background-color: rgba(255, 255, 255, 0.12);
+        }
+        .lg-slash-item[data-selected]:hover {
+          background-color: rgba(255, 255, 255, 0.12);
+        }
+        .lg-slash-pinned {
+          background: rgba(10, 132, 255, 0.15);
+        }
+        .lg-slash-pinned:hover {
+          background: rgba(10, 132, 255, 0.25);
+        }
+        .lg-slash-pinned .lg-slash-icon {
+          color: rgba(100, 180, 255, 0.95);
+        }
+        .lg-slash-icon {
+          background: rgba(255, 255, 255, 0.06);
+          border-color: rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.85);
+        }
+        .lg-slash-title {
+          color: rgba(255, 255, 255, 0.92);
+        }
+        .lg-slash-subtext {
+          color: rgba(235, 235, 245, 0.5);
+        }
+        .lg-slash-badge {
+          background: rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.55);
+        }
+        .lg-slash-empty {
+          color: rgba(235, 235, 245, 0.5);
+        }
+        .lg-slash-loader span {
+          background: rgba(255, 255, 255, 0.4);
+        }
+
+        .lg-toolbar-root {
+          background: rgba(36, 36, 38, 0.72);
+          border-color: rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.92);
+          box-shadow:
+            inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+            0 0 0 0.5px rgba(0, 0, 0, 0.5),
+            0 12px 28px rgba(0, 0, 0, 0.5),
+            0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .lg-toolbar-root button,
+        .lg-toolbar-root [role="button"] {
+          color: rgba(255, 255, 255, 0.88) !important;
+        }
+        .lg-toolbar-root button:hover,
+        .lg-toolbar-root [role="button"]:hover {
+          background: rgba(255, 255, 255, 0.08) !important;
+        }
+        .lg-toolbar-root button[data-selected="true"],
+        .lg-toolbar-root button[aria-pressed="true"],
+        .lg-toolbar-root button[data-active="true"] {
+          background: rgba(255, 255, 255, 0.14) !important;
+          color: rgba(255, 255, 255, 1) !important;
+        }
+        .lg-toolbar-root button[data-selected="true"]:hover,
+        .lg-toolbar-root button[aria-pressed="true"]:hover,
+        .lg-toolbar-root button[data-active="true"]:hover {
+          background: rgba(255, 255, 255, 0.16) !important;
+        }
+        .lg-toolbar-root hr,
+        .lg-toolbar-root [role="separator"] {
+          background: rgba(255, 255, 255, 0.12) !important;
+        }
+      }
+
+      /* ===== AI prompt popup ===== */
+      .lg-ai-popup {
+        min-width: 360px;
+        max-width: 480px;
+        background: rgba(245, 245, 247, 0.82);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+        backdrop-filter: blur(28px) saturate(180%);
+        border-radius: 12px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        box-shadow:
+          inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
+          0 0 0 0.5px rgba(0, 0, 0, 0.06),
+          0 14px 36px rgba(0, 0, 0, 0.18),
+          0 2px 8px rgba(0, 0, 0, 0.08);
+        padding: 8px;
+        color: #1d1d1f;
+        font-size: 13px;
+      }
+      .lg-ai-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .lg-ai-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        background: transparent;
+        font: inherit;
+        color: inherit;
+        padding: 6px 8px;
+      }
+      .lg-ai-input::placeholder {
+        color: rgba(60, 60, 67, 0.45);
+      }
+      .lg-ai-primary {
+        appearance: none;
+        border: none;
+        background: rgba(10, 132, 255, 0.95);
+        color: white;
+        font: inherit;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .lg-ai-primary:hover {
+        background: rgba(10, 132, 255, 1);
+      }
+      .lg-ai-primary:disabled {
+        background: rgba(10, 132, 255, 0.35);
+        cursor: default;
+      }
+      .lg-ai-secondary {
+        appearance: none;
+        border: 0.5px solid rgba(0, 0, 0, 0.12);
+        background: rgba(255, 255, 255, 0.6);
+        color: inherit;
+        font: inherit;
+        padding: 5px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .lg-ai-secondary:hover {
+        background: rgba(255, 255, 255, 0.85);
+      }
+      .lg-ai-status {
+        flex: 1;
+        color: rgba(60, 60, 67, 0.7);
+      }
+      .lg-ai-loader {
+        display: inline-flex;
+        gap: 3px;
+        align-items: center;
+        padding-left: 6px;
+      }
+      .lg-ai-loader span {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: rgba(60, 60, 67, 0.45);
+        animation: lg-slash-dot 1s infinite ease-in-out;
+      }
+      .lg-ai-loader span:nth-child(2) { animation-delay: 0.15s; }
+      .lg-ai-loader span:nth-child(3) { animation-delay: 0.3s; }
+      .lg-ai-preview {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 4px;
+      }
+      .lg-ai-text {
+        max-height: 260px;
+        overflow: auto;
+        margin: 0;
+        padding: 8px 10px;
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 8px;
+        font: inherit;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .lg-ai-error {
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: rgba(255, 59, 48, 0.12);
+        color: rgba(180, 30, 30, 0.95);
+      }
+      .lg-ai-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .lg-ai-divider {
+        height: 0.5px;
+        background: rgba(0, 0, 0, 0.08);
+        margin: 8px 0;
+        border: none;
+      }
+
+      /* Image-gen popup: multi-line prompt input and preview thumbnail.
+         Reuses .lg-ai-popup, .lg-ai-primary, .lg-ai-secondary etc. */
+      .lg-ai-image-textarea {
+        min-height: 64px;
+        max-height: 200px;
+        resize: vertical;
+        line-height: 1.4;
+      }
+      .lg-ai-image-preview {
+        display: flex;
+        justify-content: center;
+        padding: 4px 0;
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 8px;
+      }
+      .lg-ai-image-preview img {
+        max-width: 100%;
+        max-height: 360px;
+        border-radius: 8px;
+        display: block;
+        object-fit: contain;
+      }
+
+      /* Research popup: roomier textarea (5 rows) and a scrollable text
+         preview tall enough to actually read the report. Reuses
+         .lg-ai-popup, .lg-ai-primary, .lg-ai-secondary, .lg-ai-text, etc. */
+      .lg-ai-research-textarea {
+        min-height: 88px;
+        max-height: 220px;
+        resize: vertical;
+        line-height: 1.4;
+      }
+      .lg-ai-research-text {
+        max-height: 420px;
+      }
+      .lg-ai-research-select {
+        appearance: none;
+        border: 0.5px solid rgba(0, 0, 0, 0.12);
+        background: rgba(255, 255, 255, 0.6);
+        color: inherit;
+        font: inherit;
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      @media (prefers-color-scheme: dark) {
+        .lg-ai-research-select {
+          border-color: rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.06);
+          color: rgba(255, 255, 255, 0.92);
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .lg-ai-popup {
+          background: rgba(36, 36, 38, 0.78);
+          border-color: rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.92);
+        }
+        .lg-ai-input::placeholder {
+          color: rgba(235, 235, 245, 0.4);
+        }
+        .lg-ai-secondary {
+          border-color: rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.06);
+          color: rgba(255, 255, 255, 0.92);
+        }
+        .lg-ai-secondary:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+        .lg-ai-status {
+          color: rgba(235, 235, 245, 0.6);
+        }
+        .lg-ai-loader span {
+          background: rgba(255, 255, 255, 0.5);
+        }
+        .lg-ai-text {
+          background: rgba(255, 255, 255, 0.06);
+        }
+        .lg-ai-error {
+          background: rgba(255, 69, 58, 0.18);
+          color: rgba(255, 180, 175, 0.95);
+        }
+        .lg-ai-divider {
+          background: rgba(255, 255, 255, 0.08);
+        }
+        .lg-ai-image-preview {
+          background: rgba(255, 255, 255, 0.06);
         }
       }
     </style>
