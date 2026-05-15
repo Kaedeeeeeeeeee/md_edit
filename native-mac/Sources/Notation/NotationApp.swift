@@ -7,6 +7,7 @@ struct NotationApp: App {
     @State private var closeGuard: CloseGuard?
     @State private var didAttachDelegate = false
     @State private var recentURLs: [URL] = RecentFiles.shared.urls
+    @State private var recentWorkspaces: [(url: URL, displayName: String)] = WorkspaceBookmark.recentWorkspaces()
 
     init() {
         let store = DocumentStore()
@@ -30,6 +31,9 @@ struct NotationApp: App {
                 .onChange(of: store.currentFileURL) { _, _ in
                     recentURLs = RecentFiles.shared.urls
                 }
+                .onChange(of: store.folderURL) { _, _ in
+                    recentWorkspaces = WorkspaceBookmark.recentWorkspaces()
+                }
                 .modifier(OpenURLForwarder(store: store))
                 .modifier(AppDelegateAttacher(store: store, didAttach: $didAttachDelegate))
         }
@@ -48,6 +52,30 @@ struct NotationApp: App {
 
                 Button("Open File…") { store.openFileDialog() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
+
+                Menu("Switch Workspace") {
+                    if recentWorkspaces.isEmpty {
+                        Text("No saved workspaces")
+                    } else {
+                        ForEach(recentWorkspaces, id: \.url.absoluteString) { entry in
+                            Button {
+                                guard entry.url != store.folderURL else { return }
+                                store.adoptRecentWorkspace(entry.url)
+                            } label: {
+                                if entry.url == store.folderURL {
+                                    Label(entry.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(entry.displayName)
+                                }
+                            }
+                        }
+                        Divider()
+                        Button("Add Folder as Workspace…") {
+                            store.openFolderDialog()
+                        }
+                    }
+                }
+                .keyboardShortcut("o", modifiers: [.command, .option])
 
                 Menu("Open Recent File") {
                     if recentURLs.isEmpty {

@@ -4,37 +4,45 @@ struct SidebarView: View {
     @Environment(DocumentStore.self) private var store
     @State private var expanded: Set<URL> = []
     @State private var didAutoExpand = false
+    @State private var recents: [(url: URL, displayName: String)] = WorkspaceBookmark.recentWorkspaces()
 
     var body: some View {
-        Group {
-            if store.fileTree.isEmpty {
-                EmptySidebar()
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(store.fileTree) { node in
-                            NodeRow(
-                                node: node,
-                                depth: 0,
-                                expanded: $expanded
-                            )
+        VStack(spacing: 0) {
+            WorkspaceHeader(recents: $recents)
+            Divider()
+            Group {
+                if store.fileTree.isEmpty {
+                    EmptySidebar()
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(store.fileTree) { node in
+                                NodeRow(
+                                    node: node,
+                                    depth: 0,
+                                    expanded: $expanded
+                                )
+                            }
                         }
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 6)
                     }
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 6)
-                }
-                .onAppear {
-                    if !didAutoExpand {
-                        didAutoExpand = true
-                        // Open the first folder so the tree isn't an empty wall on launch.
-                        if let first = store.fileTree.first(where: \.isDirectory) {
-                            expanded.insert(first.url)
+                    .onAppear {
+                        if !didAutoExpand {
+                            didAutoExpand = true
+                            // Open the first folder so the tree isn't an empty wall on launch.
+                            if let first = store.fileTree.first(where: \.isDirectory) {
+                                expanded.insert(first.url)
+                            }
                         }
                     }
                 }
             }
         }
-        .frame(minWidth: 180, idealWidth: 240, maxWidth: 360)
+        .frame(minWidth: 200, idealWidth: 260, maxWidth: 360)
+        .onChange(of: store.folderURL) { _, _ in
+            recents = WorkspaceBookmark.recentWorkspaces()
+        }
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
                 Button {
@@ -53,6 +61,88 @@ struct SidebarView: View {
                 .help("Open Folder")
             }
         }
+    }
+}
+
+// MARK: - Workspace header
+
+private struct WorkspaceHeader: View {
+    @Environment(DocumentStore.self) private var store
+    @Binding var recents: [(url: URL, displayName: String)]
+
+    var body: some View {
+        Menu {
+            ForEach(menuRows, id: \.url.absoluteString) { entry in
+                Button {
+                    guard entry.url != store.folderURL else { return }
+                    store.adoptRecentWorkspace(entry.url)
+                } label: {
+                    HStack {
+                        Image(systemName: entry.url == store.folderURL
+                              ? "checkmark.circle.fill"
+                              : "folder")
+                        VStack(alignment: .leading) {
+                            Text(entry.displayName)
+                            Text(entry.url.path)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                }
+            }
+            Divider()
+            Button {
+                store.openFolderDialog()
+            } label: {
+                Label("Add Folder as Workspace…", systemImage: "folder.badge.plus")
+            }
+            if let folder = store.folderURL {
+                Button {
+                    store.revealInFinder(folder)
+                } label: {
+                    Label("Reveal in Finder", systemImage: "arrow.up.right.square")
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "books.vertical")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.accentColor)
+                Text(currentDisplayName)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+    }
+
+    private var currentDisplayName: String {
+        store.folderURL?.lastPathComponent ?? "No workspace"
+    }
+
+    /// Recents with the active workspace pinned at the top, even if it
+    /// wasn't yet in the recents list (first-launch onboarding flow).
+    private var menuRows: [(url: URL, displayName: String)] {
+        var rows = recents
+        if let active = store.folderURL,
+           !rows.contains(where: { $0.url == active }) {
+            rows.insert((url: active, displayName: active.lastPathComponent), at: 0)
+        }
+        return rows
     }
 }
 
