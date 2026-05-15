@@ -45,42 +45,52 @@
 ## 仓库结构
 
 ```
-notation-demo/                   # 项目根（git remote: Kaedeeeeeeeeee/md_edit）
+md_edit/                              # 项目根（git remote: Kaedeeeeeeeeee/md_edit）
 ├── CLAUDE.md                         # 本文件
-├── README.md                         # 用户向 README（双 track 说明）
-│
-├── native-mac/                       # ★ 主线，Swift + WKWebView ★
-│   ├── project.yml                   # XcodeGen 配置；改完跑 `xcodegen generate`
-│   ├── Sources/Notation/
-│   │   ├── NotationApp.swift     # @main App scene + commands
-│   │   ├── AppDelegate.swift         # AppKit URL 路由 + 直接 NSWindow 操作
-│   │   ├── ContentView.swift         # NavigationSplitView 根
-│   │   ├── SidebarView.swift         # 自写递归文件树（不用 List+OutlineGroup）
-│   │   ├── EditorWebView.swift       # WKWebView + JS 桥
-│   │   ├── EditorSchemeHandler.swift # marktext-editor:// scheme handler
-│   │   ├── DocumentStore.swift       # 文件状态、dirty、auto-save、文件树
-│   │   ├── WorkspacePicker.swift     # 启动选择器（Xcode 风）
-│   │   ├── WorkspaceBookmark.swift   # security-scoped bookmarks 持久化
-│   │   ├── FolderWatcher.swift       # FSEventStream 外部变更监听
-│   │   ├── WindowAccessor.swift      # SwiftUI ↔ NSWindow 桥 + CloseGuard
-│   │   ├── DefaultMarkdownHandler.swift  # 首次启动声明为 .md 默认 app
-│   │   ├── RecentFiles.swift         # 最近文件
-│   │   ├── Settings.swift            # 设置面板
-│   │   ├── DebugLog.swift            # 文件日志（绕开 unified log 过滤）
-│   │   └── Notation.entitlements # sandbox + user-selected files + network.client
-│   ├── Resources/editor/             # Vite build 产物（gitignored，会 bake 进 .app）
-│   ├── Assets.xcassets/AppIcon.appiconset/  # 自动生成
-│   ├── Icon/AppIcon.svg              # 应用图标源（SVG，可编辑）
-│   ├── scripts/build-icon.sh         # SVG → 所有 PNG 尺寸 → Asset Catalog
-│   └── web/                          # React + BlockNote 子项目
-│       ├── package.json
-│       ├── vite.config.ts            # 把 build 直接写到 ../Resources/editor
-│       └── src/
-│           ├── main.tsx
-│           ├── EmbeddedEditor.tsx    # BlockNote + bridge
-│           └── MathBlock.tsx         # KaTeX 自定义块
-│
-└── src/, src-tauri/                  # 最早的 Tauri 版本，保留作参考，已停止迭代
+├── README.md                         # 用户向 README
+├── PRIVACY.md                        # 隐私政策（与 landing 站 /privacy 同步）
+├── docs/                             # GitHub Pages landing（index + /privacy）
+│   ├── index.html
+│   ├── privacy.html
+│   ├── styles.css
+│   └── assets/
+└── native-mac/                       # Swift + WKWebView 主体
+    ├── project.yml                   # XcodeGen 配置；改完跑 `xcodegen generate`
+    ├── APP_STORE_SUBMISSION.md       # 上架 checklist
+    ├── Sources/Notation/
+    │   ├── NotationApp.swift             # @main App scene + commands
+    │   ├── AppDelegate.swift             # AppKit URL 路由 + 直接 NSWindow 操作
+    │   ├── ContentView.swift             # NavigationSplitView 根
+    │   ├── SidebarView.swift             # 自写递归文件树（不用 List+OutlineGroup）
+    │   ├── EditorWebView.swift           # WKWebView + JS 桥
+    │   ├── EditorSchemeHandler.swift     # marktext-editor:// scheme handler
+    │   ├── DocumentStore.swift           # 文件状态、dirty、auto-save、文件树
+    │   ├── WorkspacePicker.swift         # 启动选择器（Xcode 风）
+    │   ├── WorkspaceBookmark.swift       # security-scoped bookmarks 持久化
+    │   ├── FolderWatcher.swift           # FSEventStream 外部变更监听
+    │   ├── WindowAccessor.swift          # SwiftUI ↔ NSWindow 桥 + CloseGuard
+    │   ├── DefaultMarkdownHandler.swift  # 首次启动声明为 .md 默认 app
+    │   ├── RecentFiles.swift             # 最近文件
+    │   ├── Settings.swift                # 设置面板（含 AI 隐私 banner）
+    │   ├── AIService.swift               # Anthropic + OpenAI 流式客户端（BYO key）
+    │   ├── KeychainStore.swift           # API key 存储（macOS Keychain）
+    │   ├── Agent/                        # AI 聊天 overlay
+    │   ├── DebugLog.swift                # 文件日志（绕开 unified log 过滤）
+    │   ├── PrivacyInfo.xcprivacy         # Apple 隐私清单（App Store 必需）
+    │   └── Notation.entitlements         # sandbox + user-selected files + network.client
+    ├── Resources/editor/             # Vite build 产物（gitignored，会 bake 进 .app）
+    ├── Assets.xcassets/AppIcon.appiconset/  # 自动生成
+    ├── Icon/AppIcon.svg              # 应用图标源（SVG，可编辑）
+    ├── scripts/build-icon.sh         # SVG → 所有 PNG 尺寸 → Asset Catalog
+    └── web/                          # React + BlockNote 子项目
+        ├── package.json
+        ├── vite.config.ts            # 把 build 直接写到 ../Resources/editor
+        └── src/
+            ├── main.tsx
+            ├── EmbeddedEditor.tsx        # BlockNote + bridge
+            ├── ai/                       # AI 弹窗 / Liquid Glass 侧菜单
+            ├── agent/                    # 编辑器 bridge (agent overlay)
+            └── MathBlock.tsx             # KaTeX 自定义块
 ```
 
 ## 关键设计决策（踩过的坑）
@@ -120,7 +130,7 @@ DocumentStore 上的 `loadEpoch: Int` 单调递增，编辑器在 `updateNSView`
 ## 常用命令
 
 ```bash
-cd /Users/user/notation-demo/native-mac
+cd /Users/user/marktext-next-demo/native-mac
 
 # 改了 web/ 之后：
 cd web && pnpm build && cd ..

@@ -4,16 +4,14 @@ import UniformTypeIdentifiers
 
 /// Launch-time workspace picker styled after Xcode's "Welcome to Xcode"
 /// window: hidden title bar, two columns (centred app hero on the left,
-/// recents list on the right), full-bleed selection rows, and a
-/// "show on launch" checkbox at the bottom.
+/// recents list on the right), full-bleed selection rows. Always shown on
+/// launch — there is no user-facing "skip" toggle.
 struct WorkspacePicker: View {
     @Environment(DocumentStore.self) private var store
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
-    @AppStorage("showPickerOnLaunch") private var showOnLaunch = true
 
     @State private var entries: [WorkspaceEntry] = []
-    @State private var didAutoSkip = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -74,16 +72,6 @@ struct WorkspacePicker: View {
             .frame(maxWidth: 230)
 
             Spacer()
-
-            // Show-on-launch toggle (Xcode's bottom-left checkbox)
-            Toggle(isOn: $showOnLaunch) {
-                Text("Show on launch")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            }
-            .toggleStyle(.checkbox)
-            .controlSize(.small)
-            .padding(.bottom, 12)
         }
         .padding(.horizontal, 16)
     }
@@ -128,10 +116,6 @@ struct WorkspacePicker: View {
 
     private func setup() {
         reload()
-        if !didAutoSkip, !showOnLaunch, let first = entries.first {
-            didAutoSkip = true
-            open(first)
-        }
     }
 
     private func reload() {
@@ -155,7 +139,7 @@ struct WorkspacePicker: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.title = "Choose a Workspace Folder"
+        panel.title = String(localized: "Choose a Workspace Folder")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         store.adoptFolder(url)
         WorkspaceBookmark.save(url)
@@ -176,7 +160,7 @@ struct WorkspacePicker: View {
         if let md = UTType(filenameExtension: "md") {
             panel.allowedContentTypes.append(md)
         }
-        panel.title = "Open Markdown File"
+        panel.title = String(localized: "Open Markdown File")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         store.loadFile(url)
         transitionToMain()
@@ -202,7 +186,7 @@ private struct WorkspaceEntry: Identifiable {
 
 private struct PillAction: View {
     let systemImage: String
-    let title: String
+    let title: LocalizedStringKey
     let action: () -> Void
     var shortcut: (Character, EventModifiers)? = nil
     @State private var hovering = false

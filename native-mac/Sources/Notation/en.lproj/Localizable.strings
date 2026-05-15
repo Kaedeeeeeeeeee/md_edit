@@ -1,0 +1,8 @@
+/* Notation — English strings table.
+   English is the development language; SwiftUI Text("...") falls back to the
+   literal when no key is found here. This file exists so the bundle ships an
+   en.lproj directory (so macOS recognizes English as an officially supported
+   localization, alongside zh-Hans).
+
+   If a string needs to differ from the source-literal default in English,
+   add it here. Otherwise leave the file effectively empty. */

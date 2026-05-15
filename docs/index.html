@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Notation — 像 Notion 一样写 Markdown</title>
+  <meta name="description" content="一款为 macOS 而生的 Markdown 编辑器。Notion 式的块级编辑，文件始终在你的硬盘上，自带 AI（你填自己的 API Key）。" />
+  <meta name="theme-color" content="#FBFBFA" />
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="assets/icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Notation — 像 Notion 一样写 Markdown" />
+  <meta property="og:description" content="为 macOS 打造的 Markdown 编辑器。Notion 式编辑，本地优先，自带 AI。" />
+  <meta property="og:image" content="assets/icon.svg" />
+  <meta property="og:locale" content="zh_CN" />
+
+  <!-- Twitter card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Notation — 像 Notion 一样写 Markdown" />
+  <meta name="twitter:description" content="为 macOS 打造的 Markdown 编辑器。Notion 式编辑，本地优先，自带 AI。" />
+  <meta name="twitter:image" content="assets/icon.svg" />
+</head>
+<body>
+
+<!-- ============================================================ Nav -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <a href="#" class="brand">
+      <span class="brand-icon"><img src="assets/icon.svg" alt="" /></span>
+      <span>Notation</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features">功能</a>
+      <a href="#demo">所见即所得</a>
+      <a href="#pricing">定价</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <a href="#pricing" class="nav-cta">
+      下载
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 1.5 V8 M3 6 L6 9 L9 6 M2 10.5 H10" />
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<!-- ============================================================ Hero -->
+<header class="hero">
+  <div class="container">
+    <div class="eyebrow">
+      <span class="dot"></span>
+      <span>Coming soon · macOS</span>
+    </div>
+    <h1 class="h1">
+      Markdown，<br />
+      本该这样<span class="accent">写</span>。
+    </h1>
+    <p class="lede">
+      <span class="em">Notation</span> 是一款为 macOS 而生的 Markdown 编辑器。像 Notion 一样所见即所得，文件却始终在你自己的电脑上。
+    </p>
+
+    <div class="hero-cta">
+      <a class="app-store-btn disabled" href="#pricing" aria-disabled="true" title="即将上架 Mac App Store">
+        <svg class="as-mark" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+          <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+        </svg>
+        <span class="as-text">
+          <span class="as-top">COMING SOON TO</span>
+          <span class="as-bot">Mac App Store</span>
+        </span>
+      </a>
+      <a class="ghost-btn" href="#features">
+        查看功能
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <path d="M4 11 L10 7 L4 3" />
+        </svg>
+      </a>
+    </div>
+
+    <div class="hero-meta">macOS 26+ · Apple Silicon · <strong style="color:var(--ink-2);font-weight:500;">免费下载</strong> · 升级 ¥68 终身买断</div>
+
+    <!-- Hero window: single self-playing animation that cycles through
+         three content styles (office / technical / fiction), showing both
+         the audience range and Notation's block-level editing features. -->
+    <div class="hero-window-wrap">
+      <div class="win">
+        <div class="win-titlebar">
+          <div class="win-traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="win-toolbar">
+            <button class="tb-btn" aria-label="切换侧边栏">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2">
+                <rect x="1.5" y="3" width="13" height="10" rx="1.6" />
+                <line x1="6" y1="3" x2="6" y2="13" />
+              </svg>
+            </button>
+            <button class="tb-btn" aria-label="新建文件">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2">
+                <path d="M10.5 1.8 L4 8.3 L3 13 L7.7 12 L14.2 5.5 Z" />
+                <path d="M9.5 2.8 L13.2 6.5" />
+              </svg>
+            </button>
+          </div>
+          <div class="win-title">
+            <span data-typing-title>新建文件.md</span>
+            <span class="win-title-badge" data-typing-badge>笔记</span>
+          </div>
+          <div class="win-right"></div>
+        </div>
+        <div class="win-body" style="padding-left:92px;">
+          <div class="typing-root" data-typing-root aria-live="polite" aria-atomic="false"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============================================================ WYSIWYG -->
+<section id="demo" class="section">
+  <div class="container">
+    <div class="section-head center">
+      <div class="section-eyebrow">所见即所得</div>
+      <h2 class="section-title">没有"预览面板"。<br />看到的就是文档。</h2>
+      <p class="section-sub">
+        传统 Markdown 编辑器要你看两份东西——左边写源码、右边看预览。Notation 不是这样：你直接编辑右边那种排好版的样子。磁盘上的文件依然是干净的 .md，能被任何工具打开，但你在 Notation 里看不到它的源码视图——也不需要切换。
+      </p>
+    </div>
+
+    <div class="demo-row">
+      <div class="demo-card">
+        <div class="demo-card-head">
+          <span class="tag"><span class="pill">磁盘上</span> 你保存的 .md 文件</span>
+          <span class="filename">notes.md · 纯文本</span>
+        </div>
+        <div class="demo-card-body mono"><span class="md-token"># </span>会议纪要
+
+<span class="md-token">## </span>背景
+产品在过去三个月增长放缓，<span class="md-token">**</span>留存<span class="md-token">**</span>下降了 12%。
+
+<span class="md-token">## </span>下一步
+<span class="md-token">- </span>本周完成用户访谈 5 场
+<span class="md-token">- </span>下周给出 v2 设计稿
+<span class="md-token">- </span>月底前实现 <span class="md-token">`</span>onboarding<span class="md-token">`</span> 改版
+
+<span class="md-token">&gt; </span>慢就是快。</div>
+      </div>
+
+      <div class="demo-card">
+        <div class="demo-card-head">
+          <span class="tag"><span class="pill">Notation 里</span> 你看到 + 编辑的</span>
+          <span class="filename">同一个文件，无需切换</span>
+        </div>
+        <div class="demo-card-body">
+          <h1>会议纪要</h1>
+          <h2>背景</h2>
+          <p>产品在过去三个月增长放缓，<strong>留存</strong>下降了 12%。</p>
+          <h2>下一步</h2>
+          <ul>
+            <li>本周完成用户访谈 5 场</li>
+            <li>下周给出 v2 设计稿</li>
+            <li>月底前实现 <code>onboarding</code> 改版</li>
+          </ul>
+          <blockquote>慢就是快。</blockquote>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Features -->
+<section id="features" class="section" style="padding-top:24px;">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-eyebrow">为什么是 Notation</div>
+      <h2 class="section-title">写得轻，<br />却又面面俱到。</h2>
+      <p class="section-sub">
+        我们做减法，但不做妥协。最重要的几件事——编辑手感、文件归属、键盘效率——一件都没省。
+      </p>
+    </div>
+
+    <div class="features">
+
+      <!-- LEAD: Notion-style — full width, side-by-side -->
+      <div class="feature lead">
+        <div class="feature-text">
+          <div class="feature-icon blue">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2.5" y="3.5" width="15" height="3" rx="0.8" />
+              <rect x="2.5" y="8.5" width="10" height="3" rx="0.8" />
+              <rect x="2.5" y="13.5" width="13" height="3" rx="0.8" />
+            </svg>
+          </div>
+          <h3>像 Notion 一样写 Markdown</h3>
+          <p>每段就是一个块——点 <code>+</code> 插入、按 <code>/</code> 选格式、拖手柄重排顺序。Markdown 快捷键（<code>#</code>、<code>-</code>、<code>></code>）也支持。源文件依然是干净的 .md，能被任何工具打开。</p>
+        </div>
+        <div class="feature-visual">
+          <div class="mini-win">
+            <div class="mw-bar"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="mw-body" style="padding:16px 18px;min-height:140px;">
+              <!-- Two rendered blocks; first has hover-state + / drag handle on the left -->
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                <span style="display:inline-flex;align-items:center;gap:1px;color:var(--muted-2);flex-shrink:0;font-size:11px;line-height:1;">
+                  <span style="font-weight:500;">+</span><span style="letter-spacing:-1px;font-weight:600;">⋮⋮</span>
+                </span>
+                <span style="font-weight:600;font-size:15px;letter-spacing:-0.01em;color:var(--ink);">周一站会</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <span style="display:inline-flex;align-items:center;gap:1px;color:var(--muted-2);flex-shrink:0;font-size:11px;line-height:1;opacity:0.35;">
+                  <span style="font-weight:500;">+</span><span style="letter-spacing:-1px;font-weight:600;">⋮⋮</span>
+                </span>
+                <span style="font-size:12.5px;color:var(--ink-2);">本周目标：发布 v1.0</span>
+              </div>
+              <!-- Slash menu floating, like the user just pressed / -->
+              <div style="margin-left:24px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 4px rgba(17,17,17,0.05),0 8px 18px -4px rgba(17,17,17,0.12);padding:4px;width:fit-content;min-width:144px;">
+                <div style="font-size:9px;color:var(--muted-2);padding:2px 8px 4px;letter-spacing:0.04em;font-family:var(--font-mono);text-transform:uppercase;">/ 插入块</div>
+                <div style="display:flex;align-items:center;gap:8px;padding:3px 8px;font-size:11px;color:var(--ink-2);border-radius:4px;">
+                  <span style="font-size:9px;color:var(--muted-2);width:14px;text-align:center;font-family:var(--font-mono);">H1</span>
+                  <span>标题 1</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding:3px 8px;font-size:11px;color:var(--blue);border-radius:4px;background:var(--blue-soft);font-weight:500;">
+                  <span style="font-size:12px;width:14px;text-align:center;line-height:1;">•</span>
+                  <span>无序列表</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding:3px 8px;font-size:11px;color:var(--ink-2);border-radius:4px;">
+                  <span style="font-size:11px;color:var(--muted-2);width:14px;text-align:center;">"</span>
+                  <span>引用</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MID: Local-first -->
+      <div class="feature mid">
+        <div>
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 5 a7 2 0 0 0 14 0 a7 2 0 0 0 -14 0 Z" />
+              <path d="M3 5 V10 a7 2 0 0 0 14 0 V5" />
+              <path d="M3 10 V15 a7 2 0 0 0 14 0 V10" />
+            </svg>
+          </div>
+          <h3>本地优先，文件归你所有</h3>
+          <p>所有笔记都是普通的 .md 文件，存放在你自己的文件夹里。没有云账号，没有同步锁定。想用 iCloud、Git、Dropbox？随便你。</p>
+        </div>
+        <div class="feature-visual">
+          <div class="mini-win">
+            <div class="mw-bar"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="mw-body" style="font-size:12.5px;font-family:var(--font-mono);color:var(--ink-2);">
+              <div style="color:var(--muted-2);">~/Documents/notes/</div>
+              <div style="margin-top:4px;">├─ 周报.md</div>
+              <div>├─ 产品想法.md</div>
+              <div>└─ <span style="color:var(--blue);">小说/</span></div>
+              <div style="padding-left:18px;color:var(--muted);">└─ 第一章.md</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MID: AI -->
+      <div class="feature mid">
+        <div>
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M10 2.5 L11.5 7 L16 8.5 L11.5 10 L10 14.5 L8.5 10 L4 8.5 L8.5 7 Z" />
+              <path d="M15 13 L15.7 14.8 L17.5 15.5 L15.7 16.2 L15 18 L14.3 16.2 L12.5 15.5 L14.3 14.8 Z" />
+            </svg>
+          </div>
+          <h3>自带钥匙的 AI</h3>
+          <p>填入你自己的 API Key，立即在编辑器里使用 Ask AI、Research（联网搜索）、Image Generation。不强制订阅，不抽成，调用直接发到你选的模型服务商。</p>
+        </div>
+        <div class="feature-visual">
+          <div class="mini-win">
+            <div class="mw-bar"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="mw-body" style="display:flex;flex-direction:column;gap:8px;">
+              <div class="api-key-chip">sk-···············4F7a</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <span class="tag-blue">Anthropic Claude</span>
+                <span class="tag-gray">OpenAI</span>
+                <span class="tag-gray">DeepSeek</span>
+                <span class="tag-gray">Ollama</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SMALL: Workspace -->
+      <div class="feature">
+        <div>
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 6 V15 a1 1 0 0 0 1 1 H17 a1 1 0 0 0 1 -1 V7 a1 1 0 0 0 -1 -1 H9 L7 4 H3 a1 1 0 0 0 -1 1 Z" />
+            </svg>
+          </div>
+          <h3>文件夹即工作区</h3>
+          <p>打开一个文件夹就是一个项目。子目录就是分组，文件就是笔记。系统沙盒下安全访问，最近列表自动记忆。</p>
+        </div>
+      </div>
+
+      <!-- SMALL: Native macOS -->
+      <div class="feature">
+        <div>
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M14.6 10.6 c-0.02 -2.05 1.68 -3.04 1.75 -3.09 c-0.96 -1.39 -2.44 -1.58 -2.97 -1.6 c-1.27 -0.13 -2.47 0.74 -3.11 0.74 c-0.65 0 -1.64 -0.72 -2.7 -0.7 c-1.39 0.02 -2.67 0.8 -3.39 2.04 c-1.45 2.51 -0.37 6.21 1.04 8.25 c0.69 1 1.51 2.12 2.59 2.08 c1.04 -0.04 1.44 -0.67 2.69 -0.67 c1.25 0 1.61 0.67 2.71 0.65 c1.12 -0.02 1.83 -1.01 2.51 -2.02 c0.79 -1.16 1.12 -2.28 1.14 -2.34 c-0.03 -0.01 -2.18 -0.83 -2.21 -3.31 Z M12.55 4.45 c0.57 -0.69 0.96 -1.66 0.85 -2.62 c-0.83 0.03 -1.84 0.55 -2.43 1.24 c-0.53 0.61 -0.99 1.59 -0.87 2.54 c0.92 0.07 1.87 -0.47 2.45 -1.16 Z" />
+            </svg>
+          </div>
+          <h3>原生 macOS 26</h3>
+          <p>Swift + SwiftUI 编写，约 5 MB 体积。真 Liquid Glass、原生菜单栏、系统级深色模式，一切都对得起这台 Mac。</p>
+        </div>
+      </div>
+
+      <!-- SMALL: Keyboard -->
+      <div class="feature">
+        <div>
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2.5" y="5" width="15" height="10" rx="2" />
+              <line x1="5.5" y1="9" x2="6.5" y2="9" />
+              <line x1="8.5" y1="9" x2="9.5" y2="9" />
+              <line x1="11.5" y1="9" x2="12.5" y2="9" />
+              <line x1="14.5" y1="9" x2="14.5" y2="9" />
+              <line x1="5.5" y1="12" x2="14.5" y2="12" />
+            </svg>
+          </div>
+          <h3>键盘党的天堂</h3>
+          <p>所有操作都有快捷键。<span class="kbd">⌘</span><span class="kbd">K</span> 命令面板，<span class="kbd">⌘</span><span class="kbd">P</span> 跳转文件。手不离键盘，思路不中断。</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Pricing -->
+<section id="pricing" class="section">
+  <div class="container">
+    <div class="section-head center">
+      <div class="section-eyebrow">定价</div>
+      <h2 class="section-title">下载免费，<br />看着合适再付费。</h2>
+      <p class="section-sub">
+        App Store 免费下载，所有功能直接可用。喜欢就在 App 里升级——三种方式，我们其实只推荐一种。
+      </p>
+    </div>
+
+    <div class="pricing-tiers">
+      <!-- Monthly — anchor -->
+      <div class="tier">
+        <div class="tier-name">月订阅</div>
+        <div class="tier-price">
+          <span class="currency">¥</span>30<span class="period">/月</span>
+        </div>
+        <ul class="tier-list">
+          <li>解锁全部功能</li>
+          <li>未来更新免费</li>
+          <li>随时取消</li>
+        </ul>
+        <div class="tier-note">适合短期需求</div>
+      </div>
+
+      <!-- Yearly — anchor -->
+      <div class="tier">
+        <div class="tier-name">年订阅</div>
+        <div class="tier-price">
+          <span class="currency">¥</span>50<span class="period">/年</span>
+        </div>
+        <ul class="tier-list">
+          <li>解锁全部功能</li>
+          <li>未来更新免费</li>
+          <li>约合每月 ¥4.2</li>
+        </ul>
+        <div class="tier-note">比月订便宜 86%</div>
+      </div>
+
+      <!-- Lifetime — featured / hero choice -->
+      <div class="tier featured">
+        <div class="tier-badge">最划算</div>
+        <div class="tier-name">终身买断</div>
+        <div class="tier-price">
+          <span class="currency">¥</span>68<span class="period">一次</span>
+        </div>
+        <ul class="tier-list">
+          <li>解锁全部功能</li>
+          <li>所有未来版本免费</li>
+          <li>同一 Apple ID 多设备共用</li>
+          <li>买一次，永远是你的</li>
+        </ul>
+        <div class="tier-note">≈ 1.5 年订阅回本</div>
+      </div>
+    </div>
+
+    <p class="pricing-footnote">
+      支付通过 App Store · AI 功能用你自己的 API Key，不抽成 · 14 天可向 App Store 申请退款
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ FAQ -->
+<section id="faq" class="section">
+  <div class="container">
+    <div class="section-head center">
+      <div class="section-eyebrow">FAQ</div>
+      <h2 class="section-title">还有些问题？</h2>
+    </div>
+
+    <div class="faq-list">
+      <div class="faq-item">
+        <button class="faq-q">
+          <span>我下载之后能直接用吗？</span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 7 H11 M7 3 V11" /></svg>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">
+          能。Notation 在 App Store 免费下载，<strong>所有功能直接可用</strong>——不锁功能、不限文件数。冷启动时会偶尔提醒你升级，但你可以"先用着"继续工作。觉得用得顺手了再升级。
+        </div></div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">
+          <span>月订、年订还是终身买断，选哪个？</span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 7 H11 M7 3 V11" /></svg>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">
+          老实说：终身买断（¥68）。你看一眼价格表就明白——年订（¥50/年）用 1.5 年就回本到买断了。我们觉得编辑器是工具不是服务，应该买了就是你的；订阅档位摆在那里只是为了让选择更清晰。
+        </div></div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">
+          <span>AI 功能需要额外付费吗？</span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 7 H11 M7 3 V11" /></svg>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">
+          不需要付给 Notation。你填入自己的 API Key（支持 Anthropic、OpenAI 以及任何 OpenAI 兼容服务，包括 DeepSeek、Groq、OpenRouter、本地 Ollama），AI 调用直接走你的账号，我们不抽成、看不到你的内容、看不到你的 Key。Key 用 macOS Keychain 加密保存在你的设备上。
+        </div></div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">
+          <span>支持 Windows 或 Linux 吗？</span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 7 H11 M7 3 V11" /></svg>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">
+          暂时只支持 macOS 26+（Apple Silicon）。我们想先把 Mac 版本做到极致，其它平台可能会在更晚的版本考虑。
+        </div></div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">
+          <span>我的文件会被上传到云端吗？</span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 7 H11 M7 3 V11" /></svg>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">
+          不会。Notation 是本地优先的，所有文件都在你自己选择的文件夹里。除非你主动用 AI 功能、把选中的文本发给你配置的模型服务商，否则没有任何网络请求离开你的设备。详见 <a href="privacy.html" style="color:var(--blue);">隐私政策</a>。
+        </div></div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q">
+          <span>如何迁移 Bear / Obsidian / Typora 的笔记？</span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 7 H11 M7 3 V11" /></svg>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">
+          把它们导出为 .md 文件、放到一个文件夹里，用 Notation 打开即可——它本来就是纯 Markdown。
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Footer -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="brand-icon" style="width:22px;height:22px;border-radius:6px;"><img src="assets/icon.svg" alt="" /></span>
+      <span>Notation © <span data-year>2026</span></span>
+    </div>
+    <div class="footer-links">
+      <a href="privacy.html">隐私政策</a>
+      <a href="https://github.com/Kaedeeeeeeeeee/md_edit" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
