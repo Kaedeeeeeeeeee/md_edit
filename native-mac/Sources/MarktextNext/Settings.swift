@@ -22,7 +22,7 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
-    @AppStorage("autoSaveEnabled") private var autoSaveEnabled = false
+    @AppStorage("autoSaveEnabled") private var autoSaveEnabled = true
     @AppStorage("autoSaveDelaySeconds") private var autoSaveDelaySeconds = 2.0
     @AppStorage("appearancePreference") private var appearance: AppearancePreference = .system
     @State private var isDefaultHandler = DefaultMarkdownHandler.isDefault()
@@ -49,7 +49,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Auto-Save")
                 } footer: {
-                    Text("Auto-save only writes when the document already has a file path. New documents must be saved manually first.")
+                    Text("Auto-save persists every change. Untitled documents are saved into your workspace with a timestamped filename — you can rename them later.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

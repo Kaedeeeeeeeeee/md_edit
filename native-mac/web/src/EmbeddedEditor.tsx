@@ -19,6 +19,8 @@ declare global {
   interface Window {
     editorBridge?: {
       loadMarkdown: (markdown: string) => void;
+      resolveUpload: (requestId: string, url: string) => void;
+      rejectUpload: (requestId: string, message: string) => void;
     };
     webkit?: {
       messageHandlers?: {
@@ -32,6 +34,72 @@ declare global {
 
 function postToHost(message: unknown) {
   window.webkit?.messageHandlers?.editor?.postMessage(message);
+}
+
+// ---- Image upload bridge --------------------------------------------------
+//
+// BlockNote calls `uploadFile(file)` whenever the user pastes or drops an
+// image.  We ship the bytes over to Swift as base64, Swift writes them to
+// `<workspace>/attachments/<uuid>.<ext>` and calls back into the bridge with
+// the relative path.  Returning a relative URL means the markdown export is
+// `![](attachments/xxx.png)` — readable by GitHub, VS Code, Typora — and
+// the EditorSchemeHandler resolves the same path back to disk when the
+// editor renders the image.
+
+type PendingUpload = {
+  resolve: (url: string) => void;
+  reject: (err: Error) => void;
+};
+const pendingUploads = new Map<string, PendingUpload>();
+let uploadCounter = 0;
+
+function readFileAsBase64(file: File): Promise<{ base64: string; mime: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataURL = String(reader.result ?? "");
+      const match = /^data:([^;]+);base64,(.+)$/.exec(dataURL);
+      if (!match) {
+        reject(new Error("Expected a base64 data URL from FileReader."));
+        return;
+      }
+      resolve({ mime: match[1], base64: match[2] });
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("FileReader failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function extFromMime(mime: string): string {
+  switch (mime) {
+    case "image/png": return "png";
+    case "image/jpeg": return "jpg";
+    case "image/gif": return "gif";
+    case "image/webp": return "webp";
+    case "image/svg+xml": return "svg";
+    case "image/heic": return "heic";
+    case "image/heif": return "heif";
+    case "image/bmp": return "bmp";
+    case "image/tiff": return "tiff";
+  }
+  // Fallback: trim "image/" prefix, drop everything non-alphanumeric.
+  const slash = mime.indexOf("/");
+  const tail = slash >= 0 ? mime.slice(slash + 1) : mime;
+  const cleaned = tail.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return cleaned.length > 0 && cleaned.length <= 6 ? cleaned : "png";
+}
+
+async function uploadFile(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Only image files can be inserted right now.");
+  }
+  const { base64, mime } = await readFileAsBase64(file);
+  const ext = extFromMime(file.type || mime);
+  const requestId = `up-${++uploadCounter}-${Date.now().toString(36)}`;
+  return new Promise<string>((resolve, reject) => {
+    pendingUploads.set(requestId, { resolve, reject });
+    postToHost({ type: "saveImage", requestId, base64, mime, ext });
+  });
 }
 
 // ---- Schema ---------------------------------------------------------------
@@ -138,7 +206,7 @@ function buildSlashItems(editor: Editor, query: string): DefaultReactSuggestionI
 // ---- Component -------------------------------------------------------------
 
 export function EmbeddedEditor() {
-  const editor = useCreateBlockNote({ schema });
+  const editor = useCreateBlockNote({ schema, uploadFile });
   const lastEmittedRef = useRef<string>("");
   const isApplyingExternalRef = useRef<boolean>(false);
 
@@ -161,6 +229,18 @@ export function EmbeddedEditor() {
             isApplyingExternalRef.current = false;
           });
         }
+      },
+      resolveUpload: (requestId: string, url: string) => {
+        const pending = pendingUploads.get(requestId);
+        if (!pending) return;
+        pendingUploads.delete(requestId);
+        pending.resolve(url);
+      },
+      rejectUpload: (requestId: string, message: string) => {
+        const pending = pendingUploads.get(requestId);
+        if (!pending) return;
+        pendingUploads.delete(requestId);
+        pending.reject(new Error(message));
       },
     };
     postToHost({ type: "ready" });

@@ -6,6 +6,18 @@ struct ContentView: View {
     @State private var didSetInitialVisibility = false
 
     var body: some View {
+        // Onboarding gate: if no workspace has been adopted yet (first launch,
+        // or saved bookmark unresolvable), show OnboardingView in place of
+        // the editor.  Adopting a workspace flips `folderURL` and re-renders
+        // into the NavigationSplitView path.
+        if store.folderURL == nil {
+            OnboardingView()
+        } else {
+            editor
+        }
+    }
+
+    private var editor: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView()
         } detail: {
@@ -36,16 +48,14 @@ struct ContentView: View {
             // user is inside a workspace, sidebar stays at its default `.all`.
             guard !didSetInitialVisibility else { return }
             didSetInitialVisibility = true
-            if store.folderURL == nil {
+            // Now that onboarding always provides a workspace, the only way
+            // currentFileURL would be set with no fileTree entries is if the
+            // user opened an external file outside the vault — keep their
+            // focus on that file.
+            if let url = store.currentFileURL,
+               let folder = store.folderURL,
+               !url.path.hasPrefix(folder.path) {
                 columnVisibility = .detailOnly
-            }
-        }
-        .onChange(of: store.folderURL) { oldValue, newValue in
-            // Adopting a workspace mid-session should auto-expand the sidebar
-            // so the user notices the file tree appeared — but only if it
-            // was previously hidden because there was no workspace.
-            if oldValue == nil, newValue != nil, columnVisibility == .detailOnly {
-                columnVisibility = .all
             }
         }
     }

@@ -76,6 +76,11 @@ final class CloseGuard: NSObject, NSWindowDelegate {
             case .alertSecondButtonReturn: // Cancel
                 return false
             case .alertThirdButtonReturn: // Don't save
+                // Race fix: if an autosave was scheduled before the user
+                // discarded, fire-after-orderOut would zombie-write the
+                // discarded content.  Kill the pending task first.
+                store.cancelPendingAutoSave()
+                store.isDirty = false
                 sender.orderOut(nil)
                 return false
             default:

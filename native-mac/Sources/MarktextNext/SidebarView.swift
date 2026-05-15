@@ -183,16 +183,15 @@ private struct EmptySidebar: View {
     var body: some View {
         VStack(spacing: 14) {
             Spacer()
-            Image(systemName: "folder")
+            Image(systemName: "doc.text")
                 .font(.system(size: 36, weight: .light))
                 .foregroundStyle(.tertiary)
-            Text("No folder open")
+            Text("No notes yet")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Button("Open Folder…") {
-                store.openFolderDialog()
-            }
-            .buttonStyle(.bordered)
+            Text("Press ⌘N or click ✎ above")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
             Spacer()
         }
         .frame(maxWidth: .infinity)

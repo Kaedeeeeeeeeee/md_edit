@@ -7,31 +7,8 @@ struct MarktextNextApp: App {
     @State private var closeGuard: CloseGuard?
     @State private var didAttachDelegate = false
     @State private var recentURLs: [URL] = RecentFiles.shared.urls
-    @State private var recentFolders: [(url: URL, displayName: String)] =
-        WorkspaceBookmark.recentWorkspaces()
 
     var body: some Scene {
-        // Launch-time workspace picker (Xcode "Welcome to Xcode" style).
-        // Shown by default; the main editor scene is suppressed until the
-        // picker chooses a workspace and explicitly opens it.
-        Window("Open Workspace", id: "picker") {
-            WorkspacePicker()
-                .environment(store)
-                .background(
-                    WindowAccessor { window in
-                        (NSApp.delegate as? AppDelegate)?.registerPickerWindow(window)
-                    }
-                )
-                .modifier(OpenURLForwarder(store: store))
-                .modifier(AppDelegateAttacher(store: store, didAttach: $didAttachDelegate))
-        }
-        .defaultLaunchBehavior(.presented)
-        .windowResizability(.contentSize)
-        .windowStyle(.hiddenTitleBar)
-
-        // Main editor window.  Singleton (so state restoration can't
-        // multiply it into stale duplicates that race to own the WebView
-        // bridge).  Opened by the picker via `openWindow(id: "main")`.
         Window("Marktext Next", id: "main") {
             ContentView()
                 .environment(store)
@@ -49,13 +26,9 @@ struct MarktextNextApp: App {
                 .onChange(of: store.currentFileURL) { _, _ in
                     recentURLs = RecentFiles.shared.urls
                 }
-                .onChange(of: store.folderURL) { _, _ in
-                    recentFolders = WorkspaceBookmark.recentWorkspaces()
-                }
                 .modifier(OpenURLForwarder(store: store))
                 .modifier(AppDelegateAttacher(store: store, didAttach: $didAttachDelegate))
         }
-        .defaultLaunchBehavior(.suppressed)
         .handlesExternalEvents(matching: ["*"])
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
@@ -71,25 +44,6 @@ struct MarktextNextApp: App {
 
                 Button("Open File…") { store.openFileDialog() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
-
-                SwitchWorkspaceMenuItem()
-
-                Menu("Open Recent Folder") {
-                    if recentFolders.isEmpty {
-                        Text("No recent folders")
-                    } else {
-                        ForEach(recentFolders, id: \.url.absoluteString) { item in
-                            Button(item.displayName) {
-                                store.adoptRecentWorkspace(item.url)
-                            }
-                        }
-                        Divider()
-                        Button("Clear Menu") {
-                            WorkspaceBookmark.clearRecent()
-                            recentFolders = []
-                        }
-                    }
-                }
 
                 Menu("Open Recent File") {
                     if recentURLs.isEmpty {
@@ -133,29 +87,14 @@ struct MarktextNextApp: App {
     }
 }
 
-/// Tiny wrapper view so the "Switch Workspace…" menu item can pull
-/// `openWindow` out of the environment — Scene-level `.commands` builders
-/// don't see view environment values directly.
-private struct SwitchWorkspaceMenuItem: View {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("Switch Workspace…") {
-            openWindow(id: "picker")
-        }
-        .keyboardShortcut("o", modifiers: [.command, .option])
-    }
-}
-
 /// Hands the shared `DocumentStore` to `AppDelegate` so file-open events
-/// arriving via AppKit (when no SwiftUI scene is on screen) can find their
-/// way home.  Also listens for `openMainRequested` notifications and
-/// fulfils them by opening the main scene window.
+/// arriving via AppKit (when the SwiftUI scene's NSWindow has been
+/// `orderOut`'d) can find their way home.  Also drains any URLs that
+/// arrived before onboarding completed.
 private struct AppDelegateAttacher: ViewModifier {
     let store: DocumentStore
     @Binding var didAttach: Bool
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
 
     func body(content: Content) -> some View {
         content
@@ -169,28 +108,20 @@ private struct AppDelegateAttacher: ViewModifier {
             }
             .onReceive(NotificationCenter.default.publisher(for: .openMainRequested)) { _ in
                 openWindow(id: "main")
-                dismissWindow(id: "picker")
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .openPickerRequested)) { _ in
-                openWindow(id: "picker")
             }
     }
 }
 
 /// Routes a file URL delivered to the scene (from Finder "Open With", a
 /// double-click on a `.md`, or a drop on the dock icon) into the shared
-/// `DocumentStore`, opens the main editor window, and dismisses the picker
-/// if it was still up.  Attached to both the picker and main scenes so
-/// the URL gets handled regardless of which is foremost when it arrives.
+/// `DocumentStore`.  Attached to the main editor scene.
 ///
 /// `store` is injected explicitly rather than read from `@Environment`
 /// because this modifier is applied *outside* the `.environment(store)`
-/// call on each scene's root view — an `@Environment(DocumentStore.self)`
+/// call on the scene's root view — an `@Environment(DocumentStore.self)`
 /// here would trap during view setup because the value isn't in scope yet.
 private struct OpenURLForwarder: ViewModifier {
     let store: DocumentStore
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
 
     func body(content: Content) -> some View {
         content.onOpenURL { url in
@@ -200,8 +131,6 @@ private struct OpenURLForwarder: ViewModifier {
             let needsScope = url.startAccessingSecurityScopedResource()
             defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
             store.loadFile(url)
-            openWindow(id: "main")
-            dismissWindow(id: "picker")
         }
     }
 }

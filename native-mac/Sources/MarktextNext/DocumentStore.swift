@@ -31,38 +31,138 @@ final class DocumentStore {
     private let folderWatcher = FolderWatcher()
     private var folderWatcherWired = false
 
+    /// Once auto-save has chosen a filename for an untitled document, reuse it
+    /// for subsequent autosaves in the same session.  Cleared on
+    /// `newDocument()` / `loadFile()`.  Without this, rapid edits after the
+    /// timestamp tick boundary spawn multiple `Untitled-…` files.
+    private var untitledAutosaveName: String?
+
+    /// Suppress `handleEditorChange` while we're pushing a freshly-loaded
+    /// document into the editor.  BlockNote re-emits an onChange post-
+    /// `replaceBlocks` with its own normalised markdown (trailing newlines,
+    /// whitespace), which without this flag would mark the doc dirty the
+    /// instant it loads and silently trigger autosave to a normalised form
+    /// that rewrites the user's file or spawns a phantom Untitled.
+    @ObservationIgnored private var isPriming: Bool = false
+    @ObservationIgnored private var primingTask: Task<Void, Never>?
+
     init() {
+        // Register UserDefaults defaults BEFORE anything reads autosave keys.
+        // `@AppStorage` initializers only apply once the matching SettingsView
+        // is constructed — until then, plain `.bool(forKey:)` calls return
+        // false for missing keys, which silently disables autosave on first
+        // launch.  This registration makes "key missing" mean the value
+        // below without writing to disk.
+        UserDefaults.standard.register(defaults: [
+            "autoSaveEnabled": true,
+            "autoSaveDelaySeconds": 2.0
+        ])
+
         // First-launch-after-install: ask macOS to make Marktext Next the
         // default handler for .md files.  Idempotent — the helper tracks a
         // flag in UserDefaults so we only do it once.
         DefaultMarkdownHandler.claimAsDefaultIfNeeded()
+
+        // Restore the previously-adopted workspace synchronously during init
+        // so ContentView's first render sees the final `folderURL` value.
+        // Without this, the onboarding gate flashes for a frame on every
+        // launch even for returning users.
+        restoreSavedWorkspaceIfAvailable()
     }
 
     // Called by JS bridge whenever editor content changes.
     func handleEditorChange(_ markdown: String) {
+        if isPriming {
+            // Editor's first onChange after replaceBlocks is BlockNote's own
+            // normalisation, not user input.  Track the markdown so dirty
+            // detection has the right baseline, but don't flip dirty.
+            currentMarkdown = markdown
+            return
+        }
         currentMarkdown = markdown
         isDirty = true
         scheduleAutoSave()
+    }
+
+    /// Cancel any pending auto-save task.  Required before:
+    ///   - Discarding dirty changes (CloseGuard "Don't Save")
+    ///   - Loading a different document
+    ///   - Creating a new document
+    /// Without this, a task scheduled before the user discarded their work
+    /// fires after `currentFileURL` and `currentMarkdown` have been swapped,
+    /// either zombie-writing discarded content or stomping on freshly-loaded
+    /// content with stale data.
+    func cancelPendingAutoSave() {
+        autoSaveTask?.cancel()
+        autoSaveTask = nil
+    }
+
+    /// Open a 1-second window during which `handleEditorChange` only updates
+    /// the cached markdown and does not flip dirty / schedule autosave.
+    /// Callers (newDocument, loadFile) invoke this immediately before
+    /// triggering an editor re-render so BlockNote's normalisation echo
+    /// doesn't masquerade as user input.
+    private func beginPriming() {
+        isPriming = true
+        primingTask?.cancel()
+        primingTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.isPriming = false
+        }
     }
 
     private func scheduleAutoSave() {
         autoSaveTask?.cancel()
         let defaults = UserDefaults.standard
         let enabled = defaults.bool(forKey: "autoSaveEnabled")
-        guard enabled, currentFileURL != nil else { return }
+        guard enabled, !currentMarkdown.isEmpty else { return }
         let delay = defaults.double(forKey: "autoSaveDelaySeconds")
         let seconds = delay > 0 ? delay : 2.0
         autoSaveTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
-            if self.isDirty, self.currentFileURL != nil {
+            guard self.isDirty, !self.currentMarkdown.isEmpty else { return }
+            if self.currentFileURL != nil {
                 self.save()
+            } else if self.folderURL != nil {
+                self.autosaveAsUntitled()
             }
+            // If both are nil (no vault, no file), nothing we can do safely.
+            // After phase-2 onboarding `folderURL` always exists, so this
+            // branch is effectively unreachable.
+        }
+    }
+
+    /// Persist an untitled document into the active workspace using a
+    /// timestamped filename, then promote it to `currentFileURL` so
+    /// subsequent saves go through the standard path.
+    private func autosaveAsUntitled() {
+        guard let folder = folderURL else { return }
+        if untitledAutosaveName == nil {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
+            untitledAutosaveName = "Untitled-\(formatter.string(from: Date())).md"
+        }
+        guard let name = untitledAutosaveName else { return }
+        let target = uniqueURL(in: folder, name: name)
+        do {
+            try currentMarkdown.write(to: target, atomically: true, encoding: .utf8)
+            currentFileURL = target
+            isDirty = false
+            RecentFiles.shared.push(target)
+            rebuildFileTree()
+            DebugLog.write("[autosave] created untitled \(target.lastPathComponent)")
+        } catch {
+            DebugLog.write("[autosave] untitled write failed: \(error.localizedDescription)")
         }
     }
 
     func newDocument() {
         guard confirmDiscardIfDirty() else { return }
+        cancelPendingAutoSave()
+        untitledAutosaveName = nil
+        beginPriming()
         currentFileURL = nil
         currentMarkdown = ""
         isDirty = false
@@ -131,6 +231,9 @@ final class DocumentStore {
     func loadFile(_ url: URL) {
         do {
             let content = try String(contentsOf: url, encoding: .utf8)
+            cancelPendingAutoSave()
+            untitledAutosaveName = nil
+            beginPriming()
             currentFileURL = url
             currentMarkdown = content
             isDirty = false
@@ -156,6 +259,7 @@ final class DocumentStore {
         if panel.runModal() == .OK, let url = panel.url {
             writeMarkdown(to: url)
             currentFileURL = url
+            untitledAutosaveName = nil // committed to an explicit filename
         }
     }
 
@@ -264,6 +368,9 @@ final class DocumentStore {
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
             if currentFileURL == url {
+                cancelPendingAutoSave()
+                untitledAutosaveName = nil
+                beginPriming()
                 currentFileURL = nil
                 currentMarkdown = ""
                 isDirty = false
@@ -277,6 +384,71 @@ final class DocumentStore {
 
     func revealInFinder(_ url: URL) {
         NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    // MARK: - Attachments
+
+    /// Write `data` to `<scopeRoot>/attachments/<uuid>.<ext>` and return
+    /// the path relative to `scopeRoot` (e.g. `"attachments/abc.png"`).
+    /// `scopeRoot` is whichever directory the caller has security-scoped
+    /// access to — for in-vault documents that's the workspace, for
+    /// floating documents it's the parent dir the user authorised via
+    /// `DocumentDirBookmarks.requestGrant`.
+    func saveImageToAttachments(data: Data, ext: String, in scopeRoot: URL) throws -> String {
+        let attachments = scopeRoot.appendingPathComponent("attachments", isDirectory: true)
+        try FileManager.default.createDirectory(at: attachments, withIntermediateDirectories: true)
+        let safeExt = sanitizedExtension(ext)
+        let filename = "\(UUID().uuidString.lowercased()).\(safeExt)"
+        let target = attachments.appendingPathComponent(filename)
+        try data.write(to: target)
+        // Only refresh the sidebar tree when the new attachment lives in the
+        // active workspace.  Attachments inside a per-doc grant directory
+        // aren't shown in the sidebar (sidebar = workspace).
+        if let folder = folderURL,
+           scopeRoot.standardizedFileURL.path == folder.standardizedFileURL.path {
+            rebuildFileTree()
+        }
+        DebugLog.write("[paste] wrote \(filename) under \(scopeRoot.lastPathComponent)")
+        return "attachments/\(filename)"
+    }
+
+    /// Resolve where pasted-image bytes for `fileURL` should be stored.
+    /// Returns a security-scoped URL the caller can read/write inside.
+    ///
+    /// Priority:
+    /// 1. File inside the active workspace → workspace root.
+    /// 2. File outside any workspace, but its parent dir has an existing
+    ///    grant → that grant.
+    /// 3. Untitled (nil fileURL) and a workspace exists → workspace root.
+    /// 4. No workspace, no grant → nil (caller must prompt or reject).
+    func imageScope(for fileURL: URL?) -> URL? {
+        if let fileURL, let folder = folderURL,
+           Self.contains(parent: folder, child: fileURL) {
+            return folder
+        }
+        if let fileURL {
+            return DocumentDirBookmarks.grant(for: fileURL)
+        }
+        return folderURL
+    }
+
+    /// Equivalent path-containment check used by `imageScope` and
+    /// `DocumentDirBookmarks`.  Standardises paths first so `~/Foo/../Bar`
+    /// reduces correctly, and gates on the trailing-slash boundary so
+    /// `/Foo` doesn't match `/FooBar/x`.
+    static func contains(parent: URL, child: URL) -> Bool {
+        let parentPath = parent.standardizedFileURL.path
+        let childPath = child.standardizedFileURL.path
+        if parentPath == childPath { return true }
+        let needle = parentPath.hasSuffix("/") ? parentPath : parentPath + "/"
+        return childPath.hasPrefix(needle)
+    }
+
+    private func sanitizedExtension(_ ext: String) -> String {
+        let trimmed = ext.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let allowed = trimmed.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) }
+        if !trimmed.isEmpty, allowed, trimmed.count <= 6 { return trimmed }
+        return "png"
     }
 
     // MARK: - Filesystem helpers

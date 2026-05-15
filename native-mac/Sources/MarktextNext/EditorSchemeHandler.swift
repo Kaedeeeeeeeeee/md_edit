@@ -12,9 +12,25 @@ import UniformTypeIdentifiers
 /// origin and CORS denies them; React never mounts and the editor stays
 /// blank.  A custom scheme avoids the file:// problem entirely *and* uses
 /// only public WebKit API, so the app is App Store-eligible.
+@MainActor
 final class EditorSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "marktext-editor"
     static let homeURL = URL(string: "\(scheme)://app/index.html")!
+
+    /// A directory the editor is allowed to serve files from in addition to
+    /// the bundled editor.  Roles distinguish workspace (one) from
+    /// per-document grants (any number) so logging is meaningful.
+    struct AccessGrant: Equatable {
+        enum Role: String { case workspace, docDir }
+        let url: URL
+        let role: Role
+    }
+
+    /// Read roots in priority order: bundle is implicit grant[-1] (always
+    /// tried first).  Each entry is checked next; first hit wins.  Set by
+    /// `EditorWebView.updateNSView` whenever the active workspace or the
+    /// current document's parent-dir grant changes.
+    var accessGrants: [AccessGrant] = []
 
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else {
@@ -29,37 +45,61 @@ final class EditorSchemeHandler: NSObject, WKURLSchemeHandler {
         if relative.hasPrefix("/") { relative.removeFirst() }
         if relative.isEmpty { relative = "index.html" }
 
-        guard
-            let resourcePath = Bundle.main.resourcePath
-        else {
-            DebugLog.write("[scheme] no resourcePath")
-            fail(urlSchemeTask, code: NSURLErrorResourceUnavailable)
+        // Try the bundled editor first.  Falling back to authorised roots
+        // lets user markdown reference attachments by relative path
+        // (`attachments/foo.png`) — workspace and per-document grants both
+        // honour the same containment check, so a markdown reference can't
+        // escape its scope into arbitrary disk locations.
+        if let data = loadFromBundle(relative: relative) {
+            respond(urlSchemeTask, url: url, data: data)
             return
         }
 
-        let fileURL = URL(fileURLWithPath: resourcePath)
-            .appendingPathComponent("editor", isDirectory: true)
-            .appendingPathComponent(relative)
+        for grant in accessGrants {
+            if let data = loadFromGrant(grant, relative: relative) {
+                respond(urlSchemeTask, url: url, data: data)
+                return
+            }
+        }
 
-        // Confine reads to the editor subdirectory.  Standardising the path
-        // resolves any `..` traversal attempts before the prefix check.
+        DebugLog.write("[scheme] not found: \(relative)")
+        fail(urlSchemeTask, code: NSURLErrorFileDoesNotExist)
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
+        // Synchronous handler — nothing to cancel.
+    }
+
+    private func loadFromBundle(relative: String) -> Data? {
+        guard let resourcePath = Bundle.main.resourcePath else { return nil }
         let editorRoot = URL(fileURLWithPath: resourcePath)
             .appendingPathComponent("editor", isDirectory: true)
-            .standardizedFileURL.path
-        let resolved = fileURL.standardizedFileURL.path
-        guard resolved.hasPrefix(editorRoot) else {
-            DebugLog.write("[scheme] path escape blocked: \(resolved) vs root: \(editorRoot)")
-            fail(urlSchemeTask, code: NSURLErrorNoPermissionsToReadFile)
-            return
-        }
+            .standardizedFileURL
+        let candidate = editorRoot.appendingPathComponent(relative).standardizedFileURL
+        guard isContained(candidate: candidate, in: editorRoot) else { return nil }
+        return try? Data(contentsOf: candidate)
+    }
 
-        guard let data = try? Data(contentsOf: fileURL) else {
-            DebugLog.write("[scheme] file not found: \(fileURL.path)")
-            fail(urlSchemeTask, code: NSURLErrorFileDoesNotExist)
-            return
-        }
+    private func loadFromGrant(_ grant: AccessGrant, relative: String) -> Data? {
+        let root = grant.url.standardizedFileURL
+        let candidate = root.appendingPathComponent(relative).standardizedFileURL
+        guard isContained(candidate: candidate, in: root) else { return nil }
+        return try? Data(contentsOf: candidate)
+    }
 
-        let mime = mimeType(for: fileURL)
+    /// Standardised-path containment check that rejects `..` escapes and
+    /// "sibling with same prefix" false positives (e.g. `/foo/editor` vs
+    /// `/foo/editor.bak/x`).
+    private func isContained(candidate: URL, in root: URL) -> Bool {
+        let rootPath = root.path
+        let candidatePath = candidate.path
+        if candidatePath == rootPath { return true }
+        let needle = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        return candidatePath.hasPrefix(needle)
+    }
+
+    private func respond(_ task: any WKURLSchemeTask, url: URL, data: Data) {
+        let mime = mimeType(for: url)
         let response = HTTPURLResponse(
             url: url,
             statusCode: 200,
@@ -75,14 +115,9 @@ final class EditorSchemeHandler: NSObject, WKURLSchemeHandler {
             expectedContentLength: data.count,
             textEncodingName: nil
         )
-
-        urlSchemeTask.didReceive(response)
-        urlSchemeTask.didReceive(data)
-        urlSchemeTask.didFinish()
-    }
-
-    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
-        // Synchronous handler — nothing to cancel.
+        task.didReceive(response)
+        task.didReceive(data)
+        task.didFinish()
     }
 
     // MARK: - Helpers
