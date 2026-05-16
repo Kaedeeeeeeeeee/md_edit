@@ -36,10 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var appKitMainCloseGuard: CloseGuard?
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        DebugLog.write("[appdelegate] open \(urls.count) URLs storeNil=\(store == nil)")
-        DebugLog.write("[appdelegate] urls=\(urls.map { $0.lastPathComponent }.joined(separator: ","))")
+        DebugLog.write("[appdelegate] open \(urls.count) URLs")
         openDocuments(at: urls)
-        DebugLog.write("[appdelegate] openDocuments returned")
     }
 
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
@@ -100,10 +98,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func openDocuments(at urls: [URL]) {
         for url in urls {
             if let store {
-                DebugLog.write("[openDocuments] delivering \(url.lastPathComponent) (store ATTACHED)")
                 deliverURL(url, to: store)
             } else {
-                DebugLog.write("[openDocuments] queuing \(url.lastPathComponent) (store NIL)")
                 pendingURLs.append(url)
             }
         }

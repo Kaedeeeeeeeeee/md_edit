@@ -229,7 +229,6 @@ final class DocumentStore {
     }
 
     func loadFile(_ url: URL) {
-        DebugLog.write("[loadFile] enter \(url.lastPathComponent) path=\(url.path)")
         do {
             let content = try String(contentsOf: url, encoding: .utf8)
             cancelPendingAutoSave()
@@ -240,7 +239,6 @@ final class DocumentStore {
             isDirty = false
             loadEpoch += 1
             RecentFiles.shared.push(url)
-            DebugLog.write("[loadFile] success len=\(content.count)")
         } catch {
             DebugLog.write("[loadFile] FAILED \(error.localizedDescription)")
             presentAlert(String(localized: "Failed to open file"), error.localizedDescription)
