@@ -139,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func createMainWindow(store: DocumentStore) -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1088, height: 714),
+            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 780),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false

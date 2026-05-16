@@ -333,24 +333,24 @@
         padding: 6px 8px;
         border-radius: 6px;
         margin-bottom: 4px;
-        background: rgba(10, 132, 255, 0.08);
+        background: transparent;
         border: none;
         font: inherit;
         color: inherit;
         text-align: left;
         cursor: pointer;
       }
+      /* Ask AI row: render identically to other slash-menu rows
+         (no blue tint).  Hover/selected mirror .lg-slash-item exactly so
+         the row participates in the same visual rhythm. */
       .lg-slash-pinned:hover {
-        background: rgba(10, 132, 255, 0.14);
+        background-color: rgba(0, 0, 0, 0.06);
       }
       .lg-slash-pinned[data-selected] {
-        background: rgba(10, 132, 255, 0.20);
+        background-color: rgba(0, 0, 0, 0.08);
       }
       .lg-slash-pinned[data-selected]:hover {
-        background: rgba(10, 132, 255, 0.22);
-      }
-      .lg-slash-pinned .lg-slash-icon {
-        color: rgba(10, 132, 255, 0.95);
+        background-color: rgba(0, 0, 0, 0.08);
       }
       .lg-slash-icon {
         flex-shrink: 0;
@@ -468,14 +468,15 @@
         .lg-slash-item[data-selected]:hover {
           background-color: rgba(255, 255, 255, 0.12);
         }
-        .lg-slash-pinned {
-          background: rgba(10, 132, 255, 0.15);
-        }
+        /* Dark mode: Ask AI row matches other rows, no blue tint. */
         .lg-slash-pinned:hover {
-          background: rgba(10, 132, 255, 0.25);
+          background-color: rgba(255, 255, 255, 0.08);
         }
-        .lg-slash-pinned .lg-slash-icon {
-          color: rgba(100, 180, 255, 0.95);
+        .lg-slash-pinned[data-selected] {
+          background-color: rgba(255, 255, 255, 0.12);
+        }
+        .lg-slash-pinned[data-selected]:hover {
+          background-color: rgba(255, 255, 255, 0.12);
         }
         .lg-slash-icon {
           background: rgba(255, 255, 255, 0.06);

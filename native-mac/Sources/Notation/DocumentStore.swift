@@ -11,6 +11,16 @@ struct FileNode: Identifiable, Hashable {
     let children: [FileNode]
 }
 
+/// Pasteboard-like state held on `DocumentStore` so menu-bar commands and
+/// the sidebar context menu can coordinate Cut/Copy/Paste across the
+/// whole window.  When `op == .cut`, the rows render at half opacity so
+/// the user remembers they have a pending move.
+struct SidebarClipboard: Equatable {
+    enum Op { case cut, copy }
+    var urls: [URL]
+    var op: Op
+}
+
 @MainActor
 @Observable
 final class DocumentStore {
@@ -26,6 +36,28 @@ final class DocumentStore {
     /// EditorWebView observes this and pushes `currentMarkdown` into JS when
     /// it changes.
     var loadEpoch: Int = 0
+
+    // MARK: - Sidebar selection / clipboard
+    //
+    // `currentFileURL` is the document open in the editor.  `selection` is
+    // an orthogonal multi-selection used by the sidebar UI for batch
+    // operations (delete, drag-drop, cut/copy/paste).  They overlap when
+    // the user clicks one file (selection = [that file]); they diverge
+    // when the user ⌘-clicks to add files without changing the editor.
+    // All URLs are stored standardised so `Set` membership is stable.
+
+    /// Multi-selection.  Cleared by `loadFile`/`newDocument` so it never
+    /// references stale URLs.  Mutated by NodeRow click handlers and
+    /// menu-bar commands.
+    var selection: Set<URL> = []
+
+    /// Anchor for Shift+click range selection — the URL of the last row
+    /// the user clicked without holding ⌘.  Nil after `clearSelection()`.
+    var anchorURL: URL?
+
+    /// Cut/Copy pasteboard, consumed by `paste(into:)`.  `op == .cut`
+    /// items render at 50% opacity in the sidebar.
+    var clipboard: SidebarClipboard?
 
     private var autoSaveTask: Task<Void, Never>?
     private let folderWatcher = FolderWatcher()
@@ -45,6 +77,12 @@ final class DocumentStore {
     /// that rewrites the user's file or spawns a phantom Untitled.
     @ObservationIgnored private var isPriming: Bool = false
     @ObservationIgnored private var primingTask: Task<Void, Never>?
+
+    /// Ignore `FolderWatcher` callbacks until this date.  Bumped to
+    /// `now + 0.4s` after any internal mutation (move/copy/rename/delete)
+    /// so we don't rebuild twice (once explicitly, once via the watcher
+    /// firing 250ms later).  Prevents visual flicker mid-operation.
+    @ObservationIgnored private var suppressWatcherUntil: Date?
 
     init() {
         // Register UserDefaults defaults BEFORE anything reads autosave keys.
@@ -185,6 +223,13 @@ final class DocumentStore {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
+        // Surface the "New Folder" button at the bottom-left of the panel so
+        // users can spin up a fresh workspace folder without bouncing out to
+        // Finder.  Sandbox grants the resulting URL the same as any other
+        // user-selected path.
+        panel.canCreateDirectories = true
+        panel.prompt = "Use This Folder"
+        panel.message = "Choose a folder for your workspace, or click “New Folder” to create one."
         if panel.runModal() == .OK, let url = panel.url {
             adoptFolder(url)
             WorkspaceBookmark.save(url)
@@ -208,8 +253,18 @@ final class DocumentStore {
 
     /// Called by FolderWatcher when something on disk changed inside the
     /// active workspace. Refreshes the tree; doesn't touch the open document.
+    /// Suppressed for a short window after internal mutations so we don't
+    /// rebuild twice for the same change.
     func handleExternalFolderChange() {
+        if let suppress = suppressWatcherUntil, Date() < suppress { return }
         rebuildFileTree()
+    }
+
+    /// Quiet the FolderWatcher for ~0.4s while an internal batch finishes.
+    /// Caller is responsible for invoking `rebuildFileTree()` themselves
+    /// once the batch is complete.
+    private func beginInternalMutation() {
+        suppressWatcherUntil = Date().addingTimeInterval(0.4)
     }
 
     /// Try to re-adopt the workspace folder that was open at the previous
@@ -340,49 +395,337 @@ final class DocumentStore {
         }
     }
 
+    /// Legacy NSAlert-based rename — kept so the context-menu "Rename…"
+    /// item continues to work without inline editing focus.  Forwards to
+    /// the headless `rename(_:to:)`.
     func rename(_ url: URL) {
         guard let newName = promptForName(
             title: String(localized: "Rename"),
             placeholder: url.lastPathComponent,
             defaultValue: url.lastPathComponent
-        ), !newName.isEmpty, newName != url.lastPathComponent else { return }
-        let dest = url.deletingLastPathComponent().appendingPathComponent(newName)
+        ) else { return }
+        _ = rename(url, to: newName)
+    }
+
+    /// Rename `url` to `newName` (last-path-component only — full paths
+    /// are rejected).  Returns the new URL on success or nil on failure /
+    /// no-op.  Handles:
+    ///   - empty / whitespace-only names (rejects)
+    ///   - illegal `/` or `:` characters (rejects)
+    ///   - same-name short-circuit (no-op success)
+    ///   - collisions (resolved via `uniqueURL`)
+    ///   - selection / currentFileURL / clipboard URL translation
+    ///   - watcher suppression so the disk-side rename doesn't double-fire
+    @discardableResult
+    func rename(_ url: URL, to newName: String) -> URL? {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard !trimmed.contains("/"), !trimmed.contains(":") else {
+            presentAlert(
+                String(localized: "Invalid name"),
+                String(localized: "Names cannot contain “/” or “:”.")
+            )
+            return nil
+        }
+        if trimmed == url.lastPathComponent { return url }
+
+        // Decide the final filename, taking collisions into account.
+        let parent = url.deletingLastPathComponent()
+        let collisionFree = uniqueURL(in: parent, name: trimmed)
+        let dest = collisionFree
+
+        beginInternalMutation()
         do {
             try FileManager.default.moveItem(at: url, to: dest)
-            if currentFileURL == url {
-                currentFileURL = dest
-            }
+            translateURL(from: url, to: dest)
             rebuildFileTree()
+            DebugLog.write("[fileop] rename \(url.lastPathComponent) -> \(dest.lastPathComponent)")
+            return dest
         } catch {
             presentAlert(String(localized: "Failed to rename"), error.localizedDescription)
+            return nil
         }
     }
 
+    /// Update every URL-keyed piece of state when a path on disk moves
+    /// from `old` to `new`.  Called by rename/move/paste.
+    private func translateURL(from old: URL, to new: URL) {
+        let oldStd = old.standardizedFileURL
+        let newStd = new.standardizedFileURL
+        if currentFileURL?.standardizedFileURL == oldStd {
+            currentFileURL = new
+        }
+        if selection.contains(oldStd) {
+            selection.remove(oldStd)
+            selection.insert(newStd)
+        }
+        if anchorURL?.standardizedFileURL == oldStd {
+            anchorURL = newStd
+        }
+        if var clip = clipboard {
+            clip.urls = clip.urls.map { $0.standardizedFileURL == oldStd ? newStd : $0 }
+            clipboard = clip
+        }
+    }
+
+    /// Single-URL delete — kept as a convenience.  Forwards to `delete(_:[URL])`.
     func delete(_ url: URL) {
+        delete([url])
+    }
+
+    /// Move N items to the system Trash with one confirmation alert.
+    /// Updates selection / currentFileURL / clipboard if any deleted URL
+    /// matched.  If the user dismisses the alert, no items are touched.
+    func delete(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        let standardised = urls.map { $0.standardizedFileURL }
+
         let alert = NSAlert()
-        let fileName = url.lastPathComponent
-        alert.messageText = String(localized: "Move “\(fileName)” to the Trash?")
-        alert.informativeText = String(localized: "You can restore it from the Trash if needed.")
+        if standardised.count == 1 {
+            alert.messageText = String(
+                localized: "Move “\(standardised[0].lastPathComponent)” to the Trash?"
+            )
+        } else {
+            alert.messageText = String(
+                localized: "Move \(standardised.count) items to the Trash?"
+            )
+        }
+        alert.informativeText = String(localized: "You can restore them from the Trash if needed.")
         alert.alertStyle = .warning
         alert.addButton(withTitle: String(localized: "Move to Trash"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        do {
-            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-            if currentFileURL == url {
-                cancelPendingAutoSave()
-                untitledAutosaveName = nil
-                beginPriming()
-                currentFileURL = nil
-                currentMarkdown = ""
-                isDirty = false
-                loadEpoch += 1
+
+        beginInternalMutation()
+        var trashedOpenDoc = false
+        for url in standardised {
+            do {
+                try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+                if currentFileURL?.standardizedFileURL == url {
+                    trashedOpenDoc = true
+                }
+                selection.remove(url)
+                if anchorURL?.standardizedFileURL == url { anchorURL = nil }
+                if var clip = clipboard {
+                    clip.urls.removeAll { $0.standardizedFileURL == url }
+                    clipboard = clip.urls.isEmpty ? nil : clip
+                }
+                DebugLog.write("[fileop] trashed \(url.lastPathComponent)")
+            } catch {
+                DebugLog.write("[fileop] trash FAILED \(url.lastPathComponent): \(error.localizedDescription)")
+                presentAlert(String(localized: "Failed to move to Trash"), error.localizedDescription)
             }
-            rebuildFileTree()
-        } catch {
-            presentAlert(String(localized: "Failed to move to Trash"), error.localizedDescription)
+        }
+        if trashedOpenDoc {
+            cancelPendingAutoSave()
+            untitledAutosaveName = nil
+            beginPriming()
+            currentFileURL = nil
+            currentMarkdown = ""
+            isDirty = false
+            loadEpoch += 1
+        }
+        rebuildFileTree()
+    }
+
+    /// Delete every URL currently in `selection`.  Used by the Delete key
+    /// and the Edit menu's "Delete Selection" command.
+    func deleteSelection() {
+        delete(Array(selection))
+    }
+
+    // MARK: - Move / Copy / Paste
+
+    /// Move N URLs into `destination` (a folder).  Same-volume → rename
+    /// (via `FileManager.moveItem`).  Cross-volume → copy + remove
+    /// (matches Finder semantics).  Refuses to move a folder into itself
+    /// or its descendant.  Collisions resolved via `uniqueURL`.
+    @discardableResult
+    func move(_ urls: [URL], into destination: URL) -> [URL] {
+        guard !urls.isEmpty else { return [] }
+        let destStd = destination.standardizedFileURL
+
+        // Reject "drop into self / descendant" up front for any source.
+        for src in urls {
+            let srcStd = src.standardizedFileURL
+            if Self.contains(parent: srcStd, child: destStd) {
+                NSSound.beep()
+                DebugLog.write("[fileop] move refused (cycle): \(srcStd.lastPathComponent) → \(destStd.path)")
+                return []
+            }
+        }
+
+        beginInternalMutation()
+        var newURLs: [URL] = []
+        for src in urls {
+            let dest = uniqueURL(in: destination, name: src.lastPathComponent)
+            do {
+                try FileManager.default.moveItem(at: src, to: dest)
+                translateURL(from: src, to: dest)
+                newURLs.append(dest)
+                DebugLog.write("[fileop] move \(src.lastPathComponent) → \(dest.path)")
+            } catch {
+                DebugLog.write("[fileop] move FAILED \(src.lastPathComponent): \(error.localizedDescription)")
+                presentAlert(String(localized: "Failed to move"), error.localizedDescription)
+            }
+        }
+        rebuildFileTree()
+        return newURLs
+    }
+
+    /// Recursively copy N URLs into `destination`.  Collisions resolved
+    /// via `uniqueURL`.  Doesn't mutate currentFileURL / selection
+    /// because the originals are still there.
+    @discardableResult
+    func copy(_ urls: [URL], into destination: URL) -> [URL] {
+        guard !urls.isEmpty else { return [] }
+        beginInternalMutation()
+        var newURLs: [URL] = []
+        for src in urls {
+            let dest = uniqueURL(in: destination, name: src.lastPathComponent)
+            do {
+                try FileManager.default.copyItem(at: src, to: dest)
+                newURLs.append(dest)
+                DebugLog.write("[fileop] copy \(src.lastPathComponent) → \(dest.path)")
+            } catch {
+                DebugLog.write("[fileop] copy FAILED \(src.lastPathComponent): \(error.localizedDescription)")
+                presentAlert(String(localized: "Failed to copy"), error.localizedDescription)
+            }
+        }
+        rebuildFileTree()
+        return newURLs
+    }
+
+    /// Mark the current selection for a Cut operation.  Items render at
+    /// 50% opacity in the sidebar until pasted or another clipboard op
+    /// replaces them.
+    func cutSelection() {
+        guard !selection.isEmpty else { return }
+        clipboard = SidebarClipboard(urls: Array(selection), op: .cut)
+        DebugLog.write("[sidebar] cut \(selection.count) items")
+    }
+
+    /// Mark the current selection for a Copy operation.
+    func copySelection() {
+        guard !selection.isEmpty else { return }
+        clipboard = SidebarClipboard(urls: Array(selection), op: .copy)
+        DebugLog.write("[sidebar] copy \(selection.count) items")
+    }
+
+    /// Consume `self.clipboard` into the destination directory.
+    /// `into == nil` → resolve to a sensible default: single-selected
+    /// folder → that folder; selected file → its parent; otherwise →
+    /// workspace root.
+    func paste(into requestedDest: URL?) {
+        guard let clip = clipboard else { return }
+        let dest = requestedDest ?? defaultPasteDestination()
+        guard let dest else { return }
+        switch clip.op {
+        case .cut:
+            let newURLs = move(clip.urls, into: dest)
+            if !newURLs.isEmpty {
+                clipboard = nil
+                selection = Set(newURLs.map { $0.standardizedFileURL })
+            }
+        case .copy:
+            let newURLs = copy(clip.urls, into: dest)
+            if !newURLs.isEmpty {
+                selection = Set(newURLs.map { $0.standardizedFileURL })
+            }
         }
     }
+
+    /// Workspace root if no selection, else the parent of the first
+    /// selected item (or the item itself if it's a folder).
+    private func defaultPasteDestination() -> URL? {
+        if selection.count == 1, let only = selection.first {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: only.path, isDirectory: &isDir), isDir.boolValue {
+                return only
+            }
+            return only.deletingLastPathComponent()
+        }
+        return folderURL
+    }
+
+    // MARK: - Selection helpers
+
+    /// Plain click semantics: select only this URL, set anchor, and
+    /// load the file into the editor if it's a file (folders just
+    /// toggle their own expansion state in the caller).
+    func selectOnly(_ url: URL, loadIfFile: Bool = true) {
+        let std = url.standardizedFileURL
+        selection = [std]
+        anchorURL = std
+        if loadIfFile {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
+               !isDir.boolValue,
+               currentFileURL?.standardizedFileURL != std {
+                loadFile(url)
+            }
+        }
+    }
+
+    /// ⌘+click semantics: toggle membership in selection without
+    /// changing the editor's open document.  Sets anchor on add.
+    func toggleSelection(_ url: URL) {
+        let std = url.standardizedFileURL
+        if selection.contains(std) {
+            selection.remove(std)
+            if anchorURL == std { anchorURL = nil }
+        } else {
+            selection.insert(std)
+            anchorURL = std
+        }
+    }
+
+    /// Shift+click semantics: extend `selection` from `anchorURL` to
+    /// `url` along the visible row order.  No-op if anchor is nil
+    /// (falls back to plain click).
+    func extendSelection(to url: URL, visibleOrder: [URL]) {
+        let std = url.standardizedFileURL
+        guard let anchor = anchorURL?.standardizedFileURL else {
+            selectOnly(url)
+            return
+        }
+        let standardised = visibleOrder.map { $0.standardizedFileURL }
+        guard let i = standardised.firstIndex(of: anchor),
+              let j = standardised.firstIndex(of: std) else {
+            selectOnly(url)
+            return
+        }
+        let lo = min(i, j)
+        let hi = max(i, j)
+        selection = Set(standardised[lo...hi])
+    }
+
+    /// Clear all multi-selection but keep the editor's open document
+    /// alone — clicking the empty sidebar background does this.
+    func clearSelection() {
+        selection.removeAll()
+        anchorURL = nil
+    }
+
+    /// Compute the flat top-to-bottom visible URL order from the file
+    /// tree given the set of expanded folder URLs.  Used by Shift+click
+    /// range selection.
+    func flattenedVisibleURLs(expanded: Set<URL>) -> [URL] {
+        var result: [URL] = []
+        func walk(_ nodes: [FileNode]) {
+            for node in nodes {
+                result.append(node.url)
+                if node.isDirectory, expanded.contains(node.url) {
+                    walk(node.children)
+                }
+            }
+        }
+        walk(fileTree)
+        return result
+    }
+
+    // (Path containment helper `Self.contains(parent:, child:)` is defined
+    // further down in the "Filesystem helpers" section — reuse that one.)
 
     func revealInFinder(_ url: URL) {
         NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -455,7 +798,10 @@ final class DocumentStore {
 
     // MARK: - Filesystem helpers
 
-    private func uniqueURL(in dir: URL, name: String) -> URL {
+    /// Collision-avoiding URL: returns `dir/name` if free, else appends
+    /// `" 2"`, `" 3"`, ... preserving the extension.  Internal so the
+    /// move/copy/paste paths can reuse it without duplicating logic.
+    func uniqueURL(in dir: URL, name: String) -> URL {
         let base = dir.appendingPathComponent(name)
         if !FileManager.default.fileExists(atPath: base.path) { return base }
         let stem = (name as NSString).deletingPathExtension

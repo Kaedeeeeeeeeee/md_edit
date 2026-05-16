@@ -28,6 +28,15 @@ final class PaywallStore {
         case failed(Error)
     }
 
+    /// True while the paywall sheet is presented on the main editor window.
+    /// Read by `AgentOverlay` so the FAB (which uses `.glassEffect(.interactive())`)
+    /// can collapse itself out of the way — Liquid Glass's interactive
+    /// hover-recomposition fights Xcode's local StoreKit Testing dialog and
+    /// hides the dialog's purchase button when the cursor is anywhere in the
+    /// editor window.  Cleanly handled by removing the FAB from the layer
+    /// stack for the duration of the sheet.
+    var isPaywallVisible: Bool = false
+
     enum PurchaseError: LocalizedError {
         case productNotFound
         case userCancelled

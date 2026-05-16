@@ -11,9 +11,9 @@ struct AgentFab: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.tint)
+            Image(systemName: "sparkle")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.secondary)
                 .rotationEffect(.degrees(isOpen ? 180 : 0))
                 .animation(.spring(response: 0.45, dampingFraction: 0.7), value: isOpen)
                 .frame(width: 44, height: 44)

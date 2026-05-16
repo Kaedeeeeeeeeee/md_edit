@@ -11,6 +11,22 @@ extension Notification.Name {
     static let proPaywallRequested = Notification.Name("proPaywallRequested")
 }
 
+/// SwiftUI environment key carrying the sidebar's focus state up to
+/// menu-bar commands.  `CommandGroup` items read it via
+/// `@FocusedValue(\.sidebarFocused)` to decide whether to enable
+/// Cut/Copy/Paste/Delete — without this gate, the shortcuts would
+/// hijack editor and TextField copy-paste.
+private struct SidebarFocusedKey: FocusedValueKey {
+    typealias Value = Bool
+}
+
+extension FocusedValues {
+    var sidebarFocused: Bool? {
+        get { self[SidebarFocusedKey.self] }
+        set { self[SidebarFocusedKey.self] = newValue }
+    }
+}
+
 @main
 struct NotationApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -91,10 +107,22 @@ struct NotationApp: App {
                         .environment(paywallStore)
                         .environment(EntitlementState.shared)
                 }
+                .onChange(of: showPaywall) { _, newValue in
+                    // Keep PaywallStore in sync so AgentOverlay can collapse
+                    // the FAB while the sheet is up.  The FAB's interactive
+                    // glassEffect occludes Xcode's local StoreKit Testing
+                    // confirmation button on cursor hover.
+                    paywallStore.isPaywallVisible = newValue
+                }
         }
         .handlesExternalEvents(matching: ["*"])
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
+        // First-launch window size.  Stored frame from previous sessions
+        // (set by the SwiftUI scene's automatic frame persistence) wins
+        // over this — so this only applies the very first time the user
+        // opens the app or after they reset the saved frame.
+        .defaultSize(width: 1200, height: 780)
         .commands {
             // Pro / subscription management items, near the top of the
             // application menu so they're easy to find.
@@ -176,6 +204,10 @@ struct NotationApp: App {
 
                 Button("Save As…") { store.saveAs() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
+            }
+
+            CommandGroup(replacing: .pasteboard) {
+                SidebarCutCopyPasteCommands(store: store)
             }
 
             CommandGroup(after: .windowList) {
@@ -267,6 +299,45 @@ private struct AppDelegateAttacher: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: .openMainRequested)) { _ in
                 openWindow(id: "main")
             }
+    }
+}
+
+/// File-management Cut / Copy / Paste / Delete shortcuts, gated by
+/// `@FocusedValue(\.sidebarFocused)` so they only fire when the sidebar
+/// (not the editor or a TextField) has key focus.  Without the gate,
+/// ⌘X in the editor would clobber text edits.
+private struct SidebarCutCopyPasteCommands: View {
+    let store: DocumentStore
+    @FocusedValue(\.sidebarFocused) private var sidebarFocused
+
+    var body: some View {
+        Group {
+            Button("Cut") {
+                store.cutSelection()
+            }
+            .keyboardShortcut("x", modifiers: .command)
+            .disabled(!(sidebarFocused ?? false) || store.selection.isEmpty)
+
+            Button("Copy") {
+                store.copySelection()
+            }
+            .keyboardShortcut("c", modifiers: .command)
+            .disabled(!(sidebarFocused ?? false) || store.selection.isEmpty)
+
+            Button("Paste") {
+                store.paste(into: nil)
+            }
+            .keyboardShortcut("v", modifiers: .command)
+            .disabled(!(sidebarFocused ?? false) || store.clipboard == nil)
+
+            Divider()
+
+            Button("Delete") {
+                store.deleteSelection()
+            }
+            .keyboardShortcut(.delete, modifiers: [])
+            .disabled(!(sidebarFocused ?? false) || store.selection.isEmpty)
+        }
     }
 }
 

@@ -217,7 +217,7 @@ struct PaywallView: View {
         case .monthly:
             return ["解锁全部 AI 功能", "随时可在 App Store 取消"]
         case .yearly:
-            return ["解锁全部 AI 功能", "约合每月 ¥4.2", "比月订便宜 86%"]
+            return ["解锁全部 AI 功能", "约合每月 ¥4.0", "比月订便宜 86%"]
         case .lifetime:
             return ["解锁全部 AI 功能", "所有未来版本免费", "约 1.5 年订阅就回本"]
         }
