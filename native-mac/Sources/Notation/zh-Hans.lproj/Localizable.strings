@@ -194,3 +194,34 @@
 
 "No notes yet" = "暂无笔记";
 "Click ✎ or 📁+ below to create one" = "点击下方 ✎ 或 📁+ 创建笔记";
+
+
+// MARK: - Settings.swift — AI tab (provider / model / key sections)
+
+"Auto-save persists every change. Untitled documents are saved into your workspace with a timestamped filename — you can rename them later." = "自动保存会持续记录每次更改。未命名的文档会以带时间戳的文件名保存到工作区，之后可以重命名。";
+
+// AI disclosure (first-time banner above the AI controls)
+"Sending text to AI providers" = "发送文本到 AI 服务商";
+"When you use Ask AI, Research, or Image Generation, the selected text and your instruction are sent over HTTPS to the AI provider you choose (Anthropic or OpenAI / compatible). Your API key is stored in macOS Keychain on this device only — it is never sent to us. The provider you choose handles your data per their own privacy policy." = "使用 Ask AI、Research 或 Image Generation 时，所选文本和你的指令会通过 HTTPS 发送到你选择的 AI 服务商（Anthropic 或 OpenAI / 兼容）。你的 API 密钥仅存储在本机的 macOS 钥匙串中——绝不会发送给我们。所选服务商会按其自身的隐私政策处理你的数据。";
+"Got it" = "了解了";
+
+// Provider picker
+"AI Provider" = "AI 服务商";
+"Provider" = "服务商";
+"Your selected text and prompts will be sent to the chosen provider's servers when you use Ask AI." = "使用 Ask AI 时，所选文本和提示词会发送到你选择的服务商。";
+
+// Model / Base URL section
+"Model" = "模型";
+"Leave fields blank to use the OpenAI defaults. To use DeepSeek, set Base URL to https://api.deepseek.com/v1 and Model to e.g. deepseek-chat. Works with any OpenAI-compatible API (Groq, Together, Fireworks, OpenRouter, local Ollama)." = "留空则使用 OpenAI 默认值。使用 DeepSeek，将 Base URL 设为 https://api.deepseek.com/v1，Model 设为如 deepseek-chat。兼容任何 OpenAI 兼容 API（Groq、Together、Fireworks、OpenRouter、本地 Ollama）。";
+"Leave blank to use the default (%@)." = "留空则使用默认值（%@）。";
+
+// API key section
+"%@ API Key" = "%@ API 密钥";
+"API key" = "API 密钥";
+"Save Key" = "保存密钥";
+"Clear" = "清除";
+"Stored in macOS Keychain. Never written to disk in plain text and never sent to anywhere except the provider you chose." = "存储在 macOS 钥匙串中。不会以明文写入磁盘，也只会发送给你所选的服务商。";
+
+// API key status
+"Saved: %@" = "已保存：%@";
+"Failed to save (see debug log)" = "保存失败（详见调试日志）";

@@ -328,7 +328,10 @@ struct SettingsView: View {
     private func reloadAIKeyDraft() {
         aiKeyDraft = ""
         if let masked = KeychainStore.maskedDisplay(account: aiProvider.keychainAccount) {
-            aiKeyStatus = "Saved: \(masked)"
+            // `String(format: String(localized:))` rather than direct
+            // interpolation because Swift variable-assignment string literals
+            // skip SwiftUI's implicit LocalizedStringKey lookup.
+            aiKeyStatus = String(format: String(localized: "Saved: %@"), masked)
         } else {
             aiKeyStatus = ""
         }
@@ -346,7 +349,7 @@ struct SettingsView: View {
             aiKeyDraft = ""
             reloadAIKeyDraft()
         } else {
-            aiKeyStatus = "Failed to save (see debug log)"
+            aiKeyStatus = String(localized: "Failed to save (see debug log)")
         }
     }
 
