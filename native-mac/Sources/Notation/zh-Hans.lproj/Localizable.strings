@@ -188,3 +188,9 @@
 
 "File too large" = "文件过大";
 "Notation can open Markdown files up to 20 MB. This file is %@." = "Notation 可打开最大 20 MB 的 Markdown 文件。此文件为 %@。";
+
+
+// MARK: - SidebarView.swift — empty workspace state
+
+"No notes yet" = "暂无笔记";
+"Click ✎ or 📁+ below to create one" = "点击下方 ✎ 或 📁+ 创建笔记";

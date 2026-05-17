@@ -305,25 +305,6 @@ final class AgentChatController {
 
     // MARK: - Doc context helper
 
-    /// Synchronously available wrapper that hops to the bridge's async
-    /// `getDocumentMarkdown` and waits. Used from `send` before the streaming
-    /// task spawns so the wire message is fully formed before the request
-    /// fires.
-    private func await_documentMarkdown() -> String {
-        // We can afford to block on the JS round-trip because `send` is called
-        // from a user gesture and the eval is cheap. But Swift doesn't let us
-        // `await` directly inside a non-async method, so we hop through a
-        // semaphore. Bounded by JS latency (~ms).
-        let semaphore = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var captured = ""
-        Task { @MainActor in
-            captured = await bridge.getDocumentMarkdown()
-            semaphore.signal()
-        }
-        semaphore.wait()
-        return captured
-    }
-
     private func wireUserMessage(prefixingDocContext doc: String, userText: String) -> String {
         let trimmed = doc.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return userText }

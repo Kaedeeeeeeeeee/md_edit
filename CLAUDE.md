@@ -18,7 +18,7 @@
 | 存储 | **本地 `.md` 文件**，可被任何工具读写 | Bear / Notion（私有库） |
 | 工作流 | **Workspace-first**（IDE 风，配 single-file fallback） | Word / Pages（document-first） |
 | 平台 | **macOS 原生**，App Store 目标 | Electron 跨平台编辑器 |
-| 体积 | 约 4.4 MB | MarkText (Electron) ~150 MB |
+| 体积 | 约 10 MB（universal arm64+x86_64） | MarkText (Electron) ~150 MB |
 
 精神原型：**MarkText 的编辑体验 + Xcode 的启动 / 项目管理 + VS Code 的工作区思维**。
 
