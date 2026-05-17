@@ -152,11 +152,11 @@ cp -R "build/Build/Products/Release/Notation.app" /Applications/
 ./scripts/build-icon.sh
 
 # 看运行时日志：
-cat "$HOME/Library/Containers/com.notation.app/Data/Documents/mt-debug.log"
+cat "$HOME/Library/Containers/com.shifengzhang.notation/Data/Documents/mt-debug.log"
 
 # 清状态恢复（如果遇到"上次异常退出"对话框）：
-rm -rf "$HOME/Library/Saved Application State/com.notation.app.savedState"
-rm -rf "$HOME/Library/Containers/com.notation.app/Data/Library/Saved Application State"
+rm -rf "$HOME/Library/Saved Application State/com.shifengzhang.notation.savedState"
+rm -rf "$HOME/Library/Containers/com.shifengzhang.notation/Data/Library/Saved Application State"
 ```
 
 ## 已知未做（deferred）

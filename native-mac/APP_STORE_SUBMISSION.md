@@ -17,7 +17,7 @@ Audit done 2026-05-14. Sandbox / entitlements / Keychain / AI disclosure UX are 
 - [x] No CDN scripts; KaTeX + BlockNote shipped locally
 - [x] `ITSAppUsesNonExemptEncryption: false` declared in Info.plist
 - [x] `LSApplicationCategoryType: productivity`
-- [x] Bundle ID `com.notation.app`, Team ID `Y4FV6WUU4V`
+- [x] Bundle ID `com.shifengzhang.notation`, Team ID `Y4FV6WUU4V`
 
 ---
 
@@ -29,7 +29,7 @@ Audit done 2026-05-14. Sandbox / entitlements / Keychain / AI disclosure UX are 
   - Platform: macOS
   - Name: `Notation` (must be globally unique — check availability; have fallback like `Notation Editor`)
   - Primary language: English (U.S.)
-  - Bundle ID: `com.notation.app` (must be registered in developer.apple.com → Identifiers first)
+  - Bundle ID: `com.shifengzhang.notation` (must be registered in developer.apple.com → Identifiers first)
   - SKU: anything stable, e.g. `notation-mac-001`
   - User access: Full Access
 - [ ] App Information
@@ -41,8 +41,8 @@ Audit done 2026-05-14. Sandbox / entitlements / Keychain / AI disclosure UX are 
 ### 1.2 Certificates & provisioning (developer.apple.com → Certificates, Identifiers & Profiles)
 - [ ] Create a **Mac App Distribution** certificate (NOT Developer ID — that's for direct distribution)
 - [ ] Create a **Mac Installer Distribution** certificate (needed to sign the .pkg uploaded to App Store)
-- [ ] Register Bundle ID `com.notation.app` with the App Sandbox capability
-- [ ] Create a **Mac App Store provisioning profile** for `com.notation.app`
+- [ ] Register Bundle ID `com.shifengzhang.notation` with the App Sandbox capability
+- [ ] Create a **Mac App Store provisioning profile** for `com.shifengzhang.notation`
 - [ ] Download both certs into Keychain; install the profile in `~/Library/MobileDevice/Provisioning Profiles/`
 
 Tip: `CODE_SIGN_STYLE: Automatic` in `project.yml` will pull these via Xcode if signed in. But for CI / `xcodebuild` from the command line, manual is more reliable. See section 3.
@@ -97,11 +97,7 @@ This is **the most likely source of rejection** — they look at AI features car
   - **Linked to user's identity**: No
   - **Used for tracking**: No
 - This represents: when the user invokes Ask AI / Research / image generation, the selected Markdown + their prompt is sent to the third-party AI provider they chose. Apple's stance is that you must declare this even though your servers never see it.
-- Also declare **Purchases → Purchase History**:
-  - **Used for**: "App Functionality" only
-  - **Linked to user's identity**: No
-  - **Used for tracking**: No
-  - Reasoning: Apple's Privacy Manifest schema requires declaring purchases used by the app even when transactions are handled entirely by StoreKit. The `PrivacyInfo.xcprivacy` in the repo already declares `NSPrivacyCollectedDataTypePurchaseHistory` — mirror that here in the Nutrition Label.
+- Do **NOT** declare **Purchases → Purchase History**. We only read `Transaction.currentEntitlements` and cache `isPro: Bool` — StoreKit handles all purchase data. Declaring it would be over-declaration and forces a stricter privacy posture than reality. (`PrivacyInfo.xcprivacy` no longer declares `NSPrivacyCollectedDataTypePurchaseHistory` either; keep these two in sync.)
 
 ### Third-party SDKs
 - None to declare. We don't bundle any analytics, ads, or third-party SDKs.

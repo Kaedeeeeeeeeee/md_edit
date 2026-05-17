@@ -6,17 +6,29 @@ import CoreServices
 /// Coalesces bursts via a small debounce so we don't thrash the UI when an
 /// editor saves many files at once.
 ///
-/// Lifecycle: owned by `DocumentStore`. We don't bother cleaning up in
-/// `deinit` — the watcher lives for the duration of the process and the
-/// kernel reclaims FSEventStream resources on app exit. Explicit `stop()`
-/// is invoked when switching folders.
+/// Lifecycle: owned by `DocumentStore`. Although the current store is
+/// app-lifetime, deinit cleans up the FSEventStream anyway so future
+/// multi-store / multi-window code can't UAF the unretained `info`
+/// pointer passed to the C callback.
 @MainActor
 final class FolderWatcher {
     var onChange: (@MainActor () -> Void)?
 
-    private var stream: FSEventStreamRef?
+    // `nonisolated(unsafe)` so deinit (which is implicitly nonisolated)
+    // can read+release the pointer. Safe because all writes happen on the
+    // main actor via start()/stop() and deinit runs after the last
+    // main-actor reference is dropped — there can be no concurrent writer.
+    nonisolated(unsafe) private var stream: FSEventStreamRef?
     private var watchedPath: String?
     private var debounceTask: Task<Void, Never>?
+
+    deinit {
+        if let s = stream {
+            FSEventStreamStop(s)
+            FSEventStreamInvalidate(s)
+            FSEventStreamRelease(s)
+        }
+    }
 
     /// Begin watching `url`. If already watching another path, stop that one first.
     func start(watching url: URL) {

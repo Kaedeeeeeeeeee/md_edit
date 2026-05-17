@@ -173,17 +173,17 @@ struct SettingsView: View {
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Image(systemName: "lock.fill")
                                     .foregroundStyle(Color.accentColor)
-                                Text("AI 功能需要升级到 Notation Pro")
+                                Text("AI features require Notation Pro upgrade")
                                     .font(.headline)
                                 Spacer()
                             }
-                            Text("解锁 Ask AI、Research、Image Generation。下载免费，AI 功能可选月订、年订或终身买断。")
+                            Text("Unlock Ask AI, Research, and Image Generation. App is free; AI features available via monthly, yearly, or lifetime purchase.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                             HStack {
                                 Spacer()
-                                Button("升级…") {
+                                Button("Upgrade…") {
                                     NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
                                 }
                                 .buttonStyle(.borderedProminent)
@@ -197,7 +197,7 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "checkmark.seal.fill")
                                 .foregroundStyle(.green)
-                            Text("已升级到 Notation Pro")
+                            Text("Upgraded to Notation Pro")
                             if let tier = entitlement.activeTier {
                                 Text("· \(tier.displayName)")
                                     .foregroundStyle(.secondary)

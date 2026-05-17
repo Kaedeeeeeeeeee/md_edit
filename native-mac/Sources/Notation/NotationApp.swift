@@ -128,17 +128,17 @@ struct NotationApp: App {
             // application menu so they're easy to find.
             CommandGroup(after: .appInfo) {
                 if !entitlement.isPro {
-                    Button("升级 Notation…") {
+                    Button("Upgrade Notation…") {
                         NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
                     }
                 } else if entitlement.activeTier?.isSubscription == true {
-                    Button("管理订阅…") {
+                    Button("Manage Subscription…") {
                         if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
                             NSWorkspace.shared.open(url)
                         }
                     }
                 }
-                Button("恢复购买") {
+                Button("Restore Purchases") {
                     Task { try? await paywallStore.restore() }
                 }
                 Divider()

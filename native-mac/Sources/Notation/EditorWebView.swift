@@ -12,7 +12,6 @@ struct EditorWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.userContentController.add(context.coordinator, name: "editor")
-        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
         // Serve the bundled editor over a custom scheme so module scripts +
         // crossorigin attrs (Vite default output) actually load.  file:// would
@@ -25,7 +24,10 @@ struct EditorWebView: NSViewRepresentable {
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
-        webView.setValue(false, forKey: "drawsBackground")
+        webView.underPageBackgroundColor = .clear
+        #if DEBUG
+        webView.isInspectable = true
+        #endif
 
         context.coordinator.webView = webView
         // Hand the same WKWebView to the agent's JS bridge so the chat panel

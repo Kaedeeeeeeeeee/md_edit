@@ -23,23 +23,27 @@ enum DocumentDirBookmarks {
     /// `stopAccessingSecurityScopedResource()` until the resource is no
     /// longer needed (we leave it open for the lifetime of subsequent
     /// reads/writes through `EditorSchemeHandler`).
+    ///
+    /// Implementation note: walk with `peek()` first (no retained handle),
+    /// then `resolve()` only the single matched blob.  Older code called
+    /// `resolve()` on every blob in the list while only returning one,
+    /// silently leaking N-1 security-scoped handles per call.
     static func grant(for fileURL: URL) -> URL? {
         let blobs = storedBlobs()
         var kept: [Data] = []
-        var match: URL?
+        var matchBlob: Data?
         for blob in blobs {
-            if let url = SecurityScopedBookmark.resolve(blob) {
-                kept.append(blob)
-                if match == nil, contains(parent: url, child: fileURL) {
-                    match = url
-                }
+            guard let url = SecurityScopedBookmark.peek(blob) else { continue }
+            kept.append(blob)
+            if matchBlob == nil, contains(parent: url, child: fileURL) {
+                matchBlob = blob
             }
-            // Unresolvable blobs are dropped (purge stale).
         }
         if kept.count != blobs.count {
             UserDefaults.standard.set(kept, forKey: storageKey)
         }
-        return match
+        guard let matchBlob else { return nil }
+        return SecurityScopedBookmark.resolve(matchBlob)
     }
 
     /// Prompt the user for permission to read/write the file's parent

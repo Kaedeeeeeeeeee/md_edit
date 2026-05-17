@@ -33,9 +33,9 @@ final class EntitlementState {
 
         var displayName: String {
             switch self {
-            case .lifetime: return String(localized: "终身买断")
-            case .yearly:   return String(localized: "年订阅")
-            case .monthly:  return String(localized: "月订阅")
+            case .lifetime: return String(localized: "Lifetime")
+            case .yearly:   return String(localized: "Yearly")
+            case .monthly:  return String(localized: "Monthly")
             }
         }
 

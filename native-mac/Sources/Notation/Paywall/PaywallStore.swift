@@ -46,10 +46,10 @@ final class PaywallStore {
 
         var errorDescription: String? {
             switch self {
-            case .productNotFound:   return String(localized: "找不到对应商品，请稍后再试。")
-            case .userCancelled:     return String(localized: "已取消。")
-            case .pending:           return String(localized: "购买待审批（如家长控制等场景）。完成后会自动到账。")
-            case .verificationFailed: return String(localized: "交易验证失败，请稍后重试。")
+            case .productNotFound:   return String(localized: "Product not found. Please try again later.")
+            case .userCancelled:     return String(localized: "Cancelled.")
+            case .pending:           return String(localized: "Purchase pending approval (e.g., parental controls). Will complete automatically.")
+            case .verificationFailed: return String(localized: "Transaction verification failed. Please try again.")
             case .unknown(let err):  return err.localizedDescription
             }
         }

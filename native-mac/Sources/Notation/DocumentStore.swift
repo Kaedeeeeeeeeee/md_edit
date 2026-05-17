@@ -69,6 +69,18 @@ final class DocumentStore {
     /// timestamp tick boundary spawn multiple `Untitled-…` files.
     private var untitledAutosaveName: String?
 
+    /// Encoding detected when we last `loadFile`d.  Preserved on save so
+    /// opening a UTF-16 / GB18030 file and saving it doesn't silently
+    /// transcode the user's bytes to UTF-8.
+    private var currentFileEncoding: String.Encoding = .utf8
+
+    /// The workspace folder we currently hold a started security-scoped
+    /// resource handle on.  Tracked separately from `folderURL` so we can
+    /// `stopAccessingSecurityScopedResource()` on the previous URL before
+    /// adopting a new one.  Without this, every workspace switch leaks the
+    /// previous workspace's kernel handle for the lifetime of the process.
+    private var workspaceAccessURL: URL?
+
     /// Suppress `handleEditorChange` while we're pushing a freshly-loaded
     /// document into the editor.  BlockNote re-emits an onChange post-
     /// `replaceBlocks` with its own normalised markdown (trailing newlines,
@@ -240,6 +252,17 @@ final class DocumentStore {
     /// Caller is responsible for having started access on `url` if it came
     /// from a security-scoped bookmark.
     func adoptFolder(_ url: URL) {
+        // Release the previous workspace's security-scoped handle before
+        // adopting a new one.  WorkspaceBookmark.restore / adoptRecent /
+        // and the NSOpenPanel path all leave the URL with a started handle
+        // that has to be paired with a stop somewhere.  Without this,
+        // every workspace switch leaks one kernel handle for the
+        // lifetime of the process.
+        if let previous = workspaceAccessURL, previous != url {
+            previous.stopAccessingSecurityScopedResource()
+        }
+        workspaceAccessURL = url
+
         folderURL = url
         rebuildFileTree()
         if !folderWatcherWired {
@@ -285,7 +308,25 @@ final class DocumentStore {
 
     func loadFile(_ url: URL) {
         do {
-            let content = try String(contentsOf: url, encoding: .utf8)
+            // Size guard — refuse files >20 MB so a stray log file can't pin
+            // the main thread on String(contentsOf:) or OOM the WKWebView
+            // when we splice the doc into evaluateJavaScript.
+            let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
+            if let size = resourceValues.fileSize, size > 20 * 1024 * 1024 {
+                let sizeStr = ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
+                presentAlert(
+                    String(localized: "File too large"),
+                    String(format: String(localized: "Notation can open Markdown files up to 20 MB. This file is %@."), sizeStr)
+                )
+                return
+            }
+            // Auto-detect encoding — handles UTF-8 BOM, UTF-16 BE/LE BOM,
+            // system default fallback. Remember the encoding so
+            // writeMarkdown(to:) doesn't silently transcode UTF-16 → UTF-8
+            // on save.
+            var detected: String.Encoding = .utf8
+            let content = try String(contentsOf: url, usedEncoding: &detected)
+            currentFileEncoding = detected
             cancelPendingAutoSave()
             untitledAutosaveName = nil
             beginPriming()
@@ -321,7 +362,7 @@ final class DocumentStore {
 
     private func writeMarkdown(to url: URL) {
         do {
-            try currentMarkdown.write(to: url, atomically: true, encoding: .utf8)
+            try currentMarkdown.write(to: url, atomically: true, encoding: currentFileEncoding)
             isDirty = false
             RecentFiles.shared.push(url)
             if folderURL != nil { rebuildFileTree() }
@@ -858,15 +899,19 @@ final class DocumentStore {
         for entry in entries {
             let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             if isDir {
+                // Hide our own automatic `attachments/` directory — it
+                // holds pasted-image bytes, not user-managed notes, and
+                // would clutter the sidebar.  Everything else shows
+                // regardless of whether it's empty so newly-created
+                // folders are visible immediately.
+                if entry.lastPathComponent == "attachments" { continue }
                 let children = scanFolder(entry)
-                if !children.isEmpty {
-                    nodes.append(FileNode(
-                        url: entry,
-                        name: entry.lastPathComponent,
-                        isDirectory: true,
-                        children: children
-                    ))
-                }
+                nodes.append(FileNode(
+                    url: entry,
+                    name: entry.lastPathComponent,
+                    isDirectory: true,
+                    children: children
+                ))
             } else if isMarkdown(entry) {
                 nodes.append(FileNode(
                     url: entry,

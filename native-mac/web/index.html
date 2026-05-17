@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Defense-in-depth for the custom-scheme bundle. `connect-src 'none'`
+         is the load-bearing line: it blocks every fetch/XHR/WebSocket from
+         the editor, guaranteeing all network goes through the Swift host.
+         'unsafe-inline' is kept for style only because BlockNote/Mantine
+         inject runtime CSS; scripts get no such waiver, so any future
+         inline <script> regression is hard-blocked. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' marktext-editor:; style-src 'self' 'unsafe-inline' marktext-editor:; img-src 'self' marktext-editor: data: blob:; script-src 'self' marktext-editor:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none';" />
     <title>Editor</title>
     <style>
       :root {

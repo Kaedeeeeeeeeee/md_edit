@@ -19,7 +19,7 @@ struct PaywallView: View {
     @State private var didSucceed: Bool = false
 
     /// Display order, left-to-right. Lifetime sits at the right so the
-    /// "最划算" featured card is the obvious endpoint of the user's gaze.
+    /// "Best Value" featured card is the obvious endpoint of the user's gaze.
     private let visualOrder: [EntitlementState.ProTier] = [.monthly, .yearly, .lifetime]
 
     var body: some View {
@@ -68,9 +68,9 @@ struct PaywallView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("升级 Notation Pro")
+                Text("Upgrade Notation Pro")
                     .font(.system(size: 28, weight: .semibold))
-                Text("解锁 Ask AI、Research、Image Generation 等全部 AI 功能。")
+                Text("Unlock Ask AI, Research, Image Generation, and all AI features.")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
             }
@@ -129,7 +129,7 @@ struct PaywallView: View {
                     .foregroundStyle(isFeatured ? Color.accentColor : .secondary)
                 Spacer()
                 if isFeatured {
-                    Text("最划算")
+                    Text("Best Value")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 9)
@@ -174,7 +174,7 @@ struct PaywallView: View {
                             .controlSize(.small)
                             .tint(isFeatured ? .white : .primary)
                     } else {
-                        Text(isFeatured ? "买断" : "订阅")
+                        Text(isFeatured ? "Buy Once" : "Subscribe")
                             .font(.system(size: 14, weight: .medium))
                     }
                 }
@@ -215,19 +215,30 @@ struct PaywallView: View {
     private func features(for tier: EntitlementState.ProTier) -> [String] {
         switch tier {
         case .monthly:
-            return ["解锁全部 AI 功能", "随时可在 App Store 取消"]
+            return [
+                String(localized: "Unlock all AI features"),
+                String(localized: "Cancel anytime on App Store"),
+            ]
         case .yearly:
-            return ["解锁全部 AI 功能", "约合每月 ¥4.0", "比月订便宜 86%"]
+            return [
+                String(localized: "Unlock all AI features"),
+                String(localized: "About ¥4.0/month"),
+                String(localized: "86% cheaper than monthly"),
+            ]
         case .lifetime:
-            return ["解锁全部 AI 功能", "所有未来版本免费", "约 1.5 年订阅就回本"]
+            return [
+                String(localized: "Unlock all AI features"),
+                String(localized: "All future versions free"),
+                String(localized: "Pays for itself in ~1.5 years"),
+            ]
         }
     }
 
     private func periodLabel(for tier: EntitlementState.ProTier) -> String {
         switch tier {
-        case .monthly:  return "/月"
-        case .yearly:   return "/年"
-        case .lifetime: return " 一次"
+        case .monthly:  return String(localized: "/month")
+        case .yearly:   return String(localized: "/year")
+        case .lifetime: return String(localized: " once")
         }
     }
 
@@ -238,7 +249,7 @@ struct PaywallView: View {
             Spacer()
             VStack(spacing: 12) {
                 ProgressView()
-                Text("正在加载商品…")
+                Text("Loading products…")
                     .foregroundStyle(.secondary)
                     .font(.callout)
             }
@@ -251,12 +262,12 @@ struct PaywallView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 36))
                 .foregroundStyle(.orange)
-            Text("商品加载失败")
+            Text("Failed to load products")
                 .font(.headline)
-            Text("请检查网络连接，然后重试。")
+            Text("Check your connection and try again.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Button("重试") {
+            Button("Retry") {
                 Task { await store.loadProducts() }
             }
             .padding(.top, 4)
@@ -269,9 +280,9 @@ struct PaywallView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 56))
                 .foregroundStyle(.green)
-            Text("升级成功")
+            Text("Upgrade successful")
                 .font(.system(size: 22, weight: .semibold))
-            Text("所有 AI 功能已解锁。")
+            Text("All AI features unlocked.")
                 .foregroundStyle(.secondary)
                 .font(.callout)
         }
@@ -282,15 +293,15 @@ struct PaywallView: View {
 
     private var disclosureBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("订阅在到期前 24 小时内自动续费。可随时在 App Store 设置中取消，终身买断不会扣费。")
+            Text("Subscriptions renew 24 hours before expiry. Cancel anytime in App Store Settings. Lifetime purchase does not auto-renew.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 16) {
-                Link("用户协议（EULA）",
+                Link("Terms (EULA)",
                      destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
-                Link("隐私政策",
+                Link("Privacy Policy",
                      destination: URL(string: "https://kaedeeeeeeeeee.github.io/md_edit/privacy.html")!)
 
                 if let err = lastError {
@@ -315,7 +326,7 @@ struct PaywallView: View {
                     if store.isRestoring {
                         ProgressView().controlSize(.mini)
                     }
-                    Text("恢复购买")
+                    Text("Restore Purchases")
                 }
             }
             .buttonStyle(.plain)
@@ -324,7 +335,7 @@ struct PaywallView: View {
 
             Spacer()
 
-            Button("先用着，下次再说") {
+            Button("Try Now, Ask Later") {
                 PaywallTrigger.recordDismissal()
                 dismiss()
             }

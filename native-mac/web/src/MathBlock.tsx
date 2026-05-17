@@ -41,7 +41,10 @@ export const MathBlock = createReactBlockSpec(
             displayMode: true,
             throwOnError: false,
             errorColor: "#cc0000",
-            output: "html",
+            output: "htmlAndMathml",
+            trust: false,
+            strict: "ignore",
+            maxExpand: 1000,
           });
         } catch (err) {
           containerRef.current.textContent = String(err);
@@ -75,7 +78,7 @@ export const MathBlock = createReactBlockSpec(
                   commit();
                 }
               }}
-              rows={Math.max(2, draft.split("\n").length + 1)}
+              rows={Math.min(20, Math.max(2, draft.split("\n").length + 1))}
             />
             <div className="math-block__hint">
               ⌘↩ to render · Esc to discard

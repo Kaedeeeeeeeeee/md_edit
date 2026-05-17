@@ -97,7 +97,7 @@ enum AIError: Error {
         case .cancelled:
             return "Cancelled."
         case .proRequired:
-            return String(localized: "AI 功能需要升级到 Notation Pro。")
+            return String(localized: "AI features require Notation Pro.")
         }
     }
 }

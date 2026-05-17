@@ -65,15 +65,23 @@ enum WorkspaceBookmark {
     }
 
     /// Resolve and adopt a previously-recent workspace bookmark.
+    ///
+    /// Implementation note: matching is done via `peek()` first so we only
+    /// `resolve()` (which starts security-scoped access) the single bookmark
+    /// the user actually picked.  Previously this iterated `resolve()` on
+    /// every recent blob and silently leaked the handles of every
+    /// non-matching entry.
     static func adoptRecent(_ url: URL) -> URL? {
         guard let list = UserDefaults.standard.array(forKey: recentKey) as? [Data] else {
             return nil
         }
         for data in list {
-            if let candidate = SecurityScopedBookmark.resolve(data), candidate.absoluteURL == url.absoluteURL {
+            guard let peeked = SecurityScopedBookmark.peek(data),
+                  peeked.absoluteURL == url.absoluteURL else { continue }
+            if let started = SecurityScopedBookmark.resolve(data) {
                 UserDefaults.standard.set(data, forKey: currentKey)
-                recordAccess(candidate)
-                return candidate
+                recordAccess(started)
+                return started
             }
         }
         return nil
