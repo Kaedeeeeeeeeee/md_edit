@@ -28,9 +28,9 @@ struct SidebarView: View {
                 }
                 // Drop target for the workspace root.  Drag a row from a
                 // folder out onto this area to move it up to the root.
-                .dropDestination(for: MultiFileTransfer.self) { items, _ in
+                .dropDestination(for: URL.self) { urls, _ in
+                    DebugLog.write("[drag] root drop urls=\(urls.count)")
                     guard let folder = store.folderURL else { return false }
-                    let urls = items.flatMap { $0.urls }
                     cancelRenaming()
                     let moved = store.move(urls, into: folder)
                     return !moved.isEmpty
@@ -339,11 +339,13 @@ private struct NodeRow: View {
         )
         .opacity(isCutPending ? 0.45 : 1.0)
         .contentShape(Rectangle())
-        // Drag source: package the row's URL (and the rest of the
-        // selection if this row is part of it) into a MultiFileTransfer.
-        .draggable(transferPayload()) {
-            // Drag preview rendered from the URL list rather than the
-            // live row, so LazyVStack-scrolled-out previews still draw.
+        // Drag source.  Use the row's URL directly — SwiftUI's
+        // Transferable conformance for URL gives us reliable intra-app
+        // decoding AND drag-out-to-Finder for free.  Multi-selection
+        // drag (carrying N URLs in one drag op) requires NSItemProvider
+        // and is deferred — for v1, multi-drag falls back to dragging
+        // just the row the user grabbed.
+        .draggable(dragURL()) {
             HStack(spacing: 6) {
                 Image(systemName: node.isDirectory ? "folder.fill" : "doc.text")
                 Text(displayName)
@@ -505,16 +507,16 @@ private struct NodeRow: View {
         }
     }
 
-    private func transferPayload() -> MultiFileTransfer {
-        // If the dragged row is part of the multi-selection, ship the
-        // whole selection.  Otherwise reset selection to just this row
-        // and ship that — mirrors Finder.
+    private func dragURL() -> URL {
+        // Single-URL drag.  Updates selection to this row only (matches
+        // Finder) so the visual highlight tracks what's actually being
+        // dragged.
         let std = node.url.standardizedFileURL
-        if store.selection.contains(std) {
-            return MultiFileTransfer(urls: Array(store.selection))
+        if !store.selection.contains(std) {
+            store.selectOnly(node.url, loadIfFile: false)
         }
-        store.selectOnly(node.url, loadIfFile: false)
-        return MultiFileTransfer(urls: [node.url])
+        DebugLog.write("[drag] start url=\(node.url.lastPathComponent)")
+        return node.url
     }
 
     private func beginRenaming() {
@@ -575,12 +577,15 @@ private struct FolderDropDestination: ViewModifier {
 
     func body(content: Content) -> some View {
         if node.isDirectory {
-            content.dropDestination(for: MultiFileTransfer.self) { items, _ in
-                let urls = items.flatMap { $0.urls }
+            content.dropDestination(for: URL.self) { urls, _ in
+                DebugLog.write("[drag] folder “\(node.name)” drop urls=\(urls.count)")
                 onDropStart()
                 let moved = store.move(urls, into: node.url)
                 return !moved.isEmpty
-            } isTargeted: { dropTargeted = $0 }
+            } isTargeted: { isTargeted in
+                if isTargeted { DebugLog.write("[drag] hover over folder “\(node.name)”") }
+                dropTargeted = isTargeted
+            }
         } else {
             content
         }

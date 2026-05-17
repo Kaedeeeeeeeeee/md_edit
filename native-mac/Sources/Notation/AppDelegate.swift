@@ -33,8 +33,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Drained from `NotationApp` once the store is attached.
     var pendingURLs: [URL] = []
 
-    private var appKitMainCloseGuard: CloseGuard?
-
     func application(_ application: NSApplication, open urls: [URL]) {
         DebugLog.write("[appdelegate] open \(urls.count) URLs")
         openDocuments(at: urls)
@@ -113,9 +111,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Bring the main editor window to the front via direct AppKit calls.
-    /// If SwiftUI hasn't constructed its NSWindow yet (cold-launch via Finder
-    /// open-with), construct one directly via AppKit so the user's file
-    /// shows up immediately rather than racing the scene lifecycle.
+    /// If SwiftUI hasn't constructed its NSWindow yet (cold-launch via
+    /// Finder open-with), just post `.openMainRequested` — the SwiftUI
+    /// `Window` scene's `.handlesExternalEvents(matching: ["*"])`
+    /// declaration causes it to materialise on its own with the full
+    /// `.environment()` chain (AgentChatController, PaywallStore,
+    /// EntitlementState, DocumentStore).  An AppKit-constructed window
+    /// via `NSHostingView` would only have DocumentStore, and ContentView
+    /// would crash reading the other environment values it needs.
     private func presentMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
         if let mainWindow = mainWindow ?? findWindow(identifier: .notationMainWindow) {
@@ -123,43 +126,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             mainWindow.makeKeyAndOrderFront(nil)
             return
         }
-
-        if let store {
-            let window = createMainWindow(store: store)
-            window.makeKeyAndOrderFront(nil)
-            return
-        }
-
         NotificationCenter.default.post(name: .openMainRequested, object: nil)
     }
 
     private func findWindow(identifier: NSUserInterfaceItemIdentifier) -> NSWindow? {
         NSApp.windows.first { $0.identifier == identifier }
-    }
-
-    private func createMainWindow(store: DocumentStore) -> NSWindow {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 780),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Notation"
-        window.identifier = .notationMainWindow
-        window.minSize = NSSize(width: 800, height: 520)
-        window.toolbarStyle = .unified
-        window.contentView = NSHostingView(
-            rootView: ContentView()
-                .environment(store)
-                .frame(minWidth: 800, minHeight: 520)
-        )
-
-        let guardian = CloseGuard(store: store)
-        guardian.attach(to: window)
-        appKitMainCloseGuard = guardian
-        mainWindow = window
-        window.center()
-        return window
     }
 }
 
