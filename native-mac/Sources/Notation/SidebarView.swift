@@ -10,10 +10,9 @@ struct SidebarView: View {
     /// swap its Text for a TextField.  Only one row renames at a time.
     @State private var renamingURL: URL?
 
-    /// Sidebar key-focus state.  Surfaced via `.focusedValue` so the
-    /// menu-bar Cut/Copy/Paste/Delete commands know whether to route to
-    /// the sidebar or fall through to the editor.
-    @FocusState private var sidebarHasFocus: Bool
+    /// AppKit responder backing for the file tree.  Row taps promote it to
+    /// first responder so the standard Edit-menu file commands light up.
+    @State private var responderHandle = SidebarResponderHandle()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,16 +38,12 @@ struct SidebarView: View {
             SidebarFooter(itemCount: visibleCount)
         }
         .frame(minWidth: 200, idealWidth: 260, maxWidth: 360)
-        // Make the sidebar a key-focus target so .onKeyPress(.delete)
-        // fires and the FocusedValue gate lights up for menu commands.
-        .focusable(true, interactions: .activate)
-        .focused($sidebarHasFocus)
-        .focusedValue(\.sidebarFocused, sidebarHasFocus)
-        .onKeyPress(.delete) {
-            guard sidebarHasFocus, !store.selection.isEmpty else { return .ignored }
-            store.deleteSelection()
-            return .handled
-        }
+        // AppKit responder backing: claims first-responder on row tap /
+        // empty-area click so the standard Edit menu routes Cut/Copy/Paste/
+        // Delete (and the ⌫ key) to file ops, and yields to the editor's
+        // WKWebView when the editor is focused.
+        .background(SidebarResponder(store: store, handle: responderHandle))
+        .environment(\.sidebarResponderHandle, responderHandle)
         .onChange(of: store.folderURL) { _, _ in
             recents = WorkspaceBookmark.recentWorkspaces()
             // Workspace switch → selection becomes meaningless.
@@ -278,6 +273,7 @@ private struct SidebarFooter: View {
 
 private struct NodeRow: View {
     @Environment(DocumentStore.self) private var store
+    @Environment(\.sidebarResponderHandle) private var responderHandle
     let node: FileNode
     let depth: Int
     @Binding var expanded: Set<URL>
@@ -485,6 +481,9 @@ private struct NodeRow: View {
     private func handleSingleTap(modifiers: EventModifiers) {
         // Don't intercept clicks while we're renaming this row.
         if isRenaming { return }
+        // Promote the sidebar to first responder so Edit-menu Cut/Copy/
+        // Paste/Delete validate against this selection.
+        responderHandle.makeKey()
         if modifiers.contains(.command) {
             store.toggleSelection(node.url)
             return

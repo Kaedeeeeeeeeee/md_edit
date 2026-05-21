@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 extension Notification.Name {
     static let aiPageActionRequested = Notification.Name("aiPageActionRequested")
@@ -9,22 +10,6 @@ extension Notification.Name {
     /// listens for this and presents itself immediately, regardless of
     /// the cold-launch 24h cooldown.
     static let proPaywallRequested = Notification.Name("proPaywallRequested")
-}
-
-/// SwiftUI environment key carrying the sidebar's focus state up to
-/// menu-bar commands.  `CommandGroup` items read it via
-/// `@FocusedValue(\.sidebarFocused)` to decide whether to enable
-/// Cut/Copy/Paste/Delete — without this gate, the shortcuts would
-/// hijack editor and TextField copy-paste.
-private struct SidebarFocusedKey: FocusedValueKey {
-    typealias Value = Bool
-}
-
-extension FocusedValues {
-    var sidebarFocused: Bool? {
-        get { self[SidebarFocusedKey.self] }
-        set { self[SidebarFocusedKey.self] = newValue }
-    }
 }
 
 @main
@@ -206,8 +191,23 @@ struct NotationApp: App {
                     .keyboardShortcut("s", modifiers: [.command, .shift])
             }
 
+            // Forward the standard clipboard selectors to the first
+            // responder (editor WKWebView, sidebar responder, or a focused
+            // TextField).  SwiftUI's *default* Edit menu can't be used: it
+            // gates Cut/Copy/Paste on its own focus model and leaves them
+            // disabled for a WKWebView, and a disabled menu item swallows
+            // ⌘C/⌘V before the web view ever sees them.  Always-enabled
+            // forwarding commands sidestep that and route to whichever pane
+            // holds key focus.
             CommandGroup(replacing: .pasteboard) {
-                SidebarCutCopyPasteCommands(store: store)
+                Button("Cut") { NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: nil) }
+                    .keyboardShortcut("x")
+                Button("Copy") { NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: nil) }
+                    .keyboardShortcut("c")
+                Button("Paste") { NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil) }
+                    .keyboardShortcut("v")
+                Button("Select All") { NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil) }
+                    .keyboardShortcut("a")
             }
 
             CommandGroup(after: .windowList) {
@@ -299,45 +299,6 @@ private struct AppDelegateAttacher: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: .openMainRequested)) { _ in
                 openWindow(id: "main")
             }
-    }
-}
-
-/// File-management Cut / Copy / Paste / Delete shortcuts, gated by
-/// `@FocusedValue(\.sidebarFocused)` so they only fire when the sidebar
-/// (not the editor or a TextField) has key focus.  Without the gate,
-/// ⌘X in the editor would clobber text edits.
-private struct SidebarCutCopyPasteCommands: View {
-    let store: DocumentStore
-    @FocusedValue(\.sidebarFocused) private var sidebarFocused
-
-    var body: some View {
-        Group {
-            Button("Cut") {
-                store.cutSelection()
-            }
-            .keyboardShortcut("x", modifiers: .command)
-            .disabled(!(sidebarFocused ?? false) || store.selection.isEmpty)
-
-            Button("Copy") {
-                store.copySelection()
-            }
-            .keyboardShortcut("c", modifiers: .command)
-            .disabled(!(sidebarFocused ?? false) || store.selection.isEmpty)
-
-            Button("Paste") {
-                store.paste(into: nil)
-            }
-            .keyboardShortcut("v", modifiers: .command)
-            .disabled(!(sidebarFocused ?? false) || store.clipboard == nil)
-
-            Divider()
-
-            Button("Delete") {
-                store.deleteSelection()
-            }
-            .keyboardShortcut(.delete, modifiers: [])
-            .disabled(!(sidebarFocused ?? false) || store.selection.isEmpty)
-        }
     }
 }
 
