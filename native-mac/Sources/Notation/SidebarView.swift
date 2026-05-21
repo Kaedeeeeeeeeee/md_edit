@@ -154,7 +154,7 @@ private struct WorkspaceHeader: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "books.vertical")
+                Image(systemName: "rectangle.stack.fill")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.accentColor)
                 Text(currentDisplayName)
