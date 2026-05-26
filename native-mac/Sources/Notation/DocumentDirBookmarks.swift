@@ -46,11 +46,27 @@ enum DocumentDirBookmarks {
         return SecurityScopedBookmark.resolve(matchBlob)
     }
 
+    /// True if a stored grant already covers `fileURL`'s directory, checked
+    /// with `peek` so we don't leave a security-scoped handle open.  Used by
+    /// the document store to decide whether the local-image access banner
+    /// needs to appear, without the side effects of `grant(for:)`.
+    static func hasGrant(for fileURL: URL) -> Bool {
+        for blob in storedBlobs() {
+            if let url = SecurityScopedBookmark.peek(blob), contains(parent: url, child: fileURL) {
+                return true
+            }
+        }
+        return false
+    }
+
     /// Prompt the user for permission to read/write the file's parent
     /// directory.  Persists the resulting bookmark on success.  Returns
     /// the started, security-scoped URL on grant, or nil if the user
     /// cancelled.
-    static func requestGrant(for fileURL: URL) -> URL? {
+    ///
+    /// `message` / `prompt` default to the image-paste wording; the
+    /// local-image access banner passes read-oriented copy instead.
+    static func requestGrant(for fileURL: URL, message: String? = nil, prompt: String? = nil) -> URL? {
         let parent = fileURL.deletingLastPathComponent()
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -58,9 +74,9 @@ enum DocumentDirBookmarks {
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
         panel.directoryURL = parent
-        panel.prompt = "Use This Folder for Images"
-        panel.message = "Choose where to save pasted images for “\(fileURL.lastPathComponent)”. " +
-            "Notation will reuse this folder for other files in the same directory."
+        panel.prompt = prompt ?? "Use This Folder for Images"
+        panel.message = message ?? ("Choose where to save pasted images for “\(fileURL.lastPathComponent)”. " +
+            "Notation will reuse this folder for other files in the same directory.")
         guard panel.runModal() == .OK, let url = panel.url else {
             DebugLog.write("[grant] user cancelled for \(fileURL.lastPathComponent)")
             return nil

@@ -37,6 +37,14 @@ final class DocumentStore {
     /// it changes.
     var loadEpoch: Int = 0
 
+    /// True when the open document references a local image but lives in a
+    /// folder Notation hasn't been granted read access to — i.e. a single
+    /// file opened from outside the workspace, before any folder
+    /// authorisation.  Drives the non-blocking "Allow Access" banner in
+    /// ContentView.  Computed once per `loadFile` (never as a hot property —
+    /// the readability probe touches security-scoped bookmarks).
+    var localImageAuthNeeded: Bool = false
+
     // MARK: - Sidebar selection / clipboard
     //
     // `currentFileURL` is the document open in the editor.  `selection` is
@@ -215,6 +223,7 @@ final class DocumentStore {
         beginPriming()
         currentFileURL = nil
         currentMarkdown = ""
+        localImageAuthNeeded = false
         isDirty = false
         loadEpoch += 1
     }
@@ -332,6 +341,7 @@ final class DocumentStore {
             beginPriming()
             currentFileURL = url
             currentMarkdown = content
+            localImageAuthNeeded = computeLocalImageAuthNeeded(for: url, markdown: content)
             isDirty = false
             loadEpoch += 1
             RecentFiles.shared.push(url)
@@ -563,6 +573,7 @@ final class DocumentStore {
             beginPriming()
             currentFileURL = nil
             currentMarkdown = ""
+            localImageAuthNeeded = false
             isDirty = false
             loadEpoch += 1
         }
@@ -816,6 +827,72 @@ final class DocumentStore {
             return DocumentDirBookmarks.grant(for: fileURL)
         }
         return folderURL
+    }
+
+    // MARK: - Local image folder access
+
+    /// Prompt for read access to the open document's folder, then re-pull the
+    /// document so its now-readable local images render.  Invoked by the
+    /// "Allow Access" banner.  No-op without a current file or if the user
+    /// cancels the folder picker.
+    func authorizeCurrentDocumentFolder() {
+        guard let fileURL = currentFileURL else { return }
+        let granted = DocumentDirBookmarks.requestGrant(
+            for: fileURL,
+            message: String(
+                format: String(localized: "Allow Notation to read the folder containing “%@” so this document’s local images can be displayed."),
+                fileURL.lastPathComponent
+            ),
+            prompt: String(localized: "Allow Access")
+        )
+        guard granted != nil else { return }
+        localImageAuthNeeded = false
+        // Re-pull: EditorWebView.updateNSView refreshes the scheme handler's
+        // grants (picking up the new bookmark) before re-sending the markdown,
+        // so the images resolve on re-render.  Prime so BlockNote's
+        // post-replaceBlocks onChange echo doesn't masquerade as a user edit.
+        beginPriming()
+        loadEpoch += 1
+    }
+
+    /// Decide whether to surface the local-image access banner for a freshly
+    /// loaded document.  Cheap checks first (workspace containment, then a
+    /// non-starting bookmark peek); only scan the markdown for a local image
+    /// reference when the folder isn't already readable.
+    private func computeLocalImageAuthNeeded(for fileURL: URL, markdown: String) -> Bool {
+        if let folder = folderURL, Self.contains(parent: folder, child: fileURL) { return false }
+        if DocumentDirBookmarks.hasGrant(for: fileURL) { return false }
+        return Self.markdownReferencesLocalImage(markdown)
+    }
+
+    /// True if `markdown` contains an image whose target is a local path
+    /// (relative or absolute) rather than a remote / `data:` / in-app URL.
+    /// Only used to decide whether the access banner is worth showing, so a
+    /// permissive match is fine.
+    static func markdownReferencesLocalImage(_ markdown: String) -> Bool {
+        let patterns = [
+            #"!\[[^\]]*\]\(\s*([^)\s]+)"#,                 // ![alt](path "title")
+            #"<img[^>]*\bsrc\s*=\s*["']([^"']+)["']"#      // <img src="path">
+        ]
+        let ns = markdown as NSString
+        let full = NSRange(location: 0, length: ns.length)
+        for pattern in patterns {
+            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            for m in re.matches(in: markdown, range: full) where m.numberOfRanges > 1 {
+                let ref = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
+                if isLocalImageReference(ref) { return true }
+            }
+        }
+        return false
+    }
+
+    private static func isLocalImageReference(_ ref: String) -> Bool {
+        guard !ref.isEmpty else { return false }
+        let lower = ref.lowercased()
+        if lower.hasPrefix("http://") || lower.hasPrefix("https://") { return false }
+        if lower.hasPrefix("data:") { return false }
+        if lower.hasPrefix("marktext-editor:") { return false }
+        return true
     }
 
     /// Equivalent path-containment check used by `imageScope` and

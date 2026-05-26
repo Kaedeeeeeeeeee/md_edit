@@ -27,6 +27,22 @@ struct ContentView: View {
                 .overlay(alignment: .top) {
                     TitleBarScrollEdge()
                 }
+                .overlay(alignment: .top) {
+                    if store.localImageAuthNeeded {
+                        LocalImageAccessBanner(
+                            onAllow: { store.authorizeCurrentDocumentFolder() },
+                            onDismiss: {
+                                withAnimation(.easeOut(duration: 0.18)) {
+                                    store.localImageAuthNeeded = false
+                                }
+                            }
+                        )
+                        .padding(.top, 50)
+                        .padding(.horizontal, 16)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .animation(.easeOut(duration: 0.2), value: store.localImageAuthNeeded)
                 .overlay(alignment: .bottomTrailing) {
                     AgentOverlay()
                 }
@@ -101,5 +117,55 @@ private struct TitleBarScrollEdge: View {
             )
             .allowsHitTesting(false)
             .ignoresSafeArea(edges: .top)
+    }
+}
+
+/// Non-blocking banner offering one-time folder access so a document opened
+/// as a single file (outside the workspace) can display its local images.
+/// The grant is remembered per directory tree, so this appears only once per
+/// folder — matching the "other editors just show it after one OK" mental
+/// model while staying inside the App Sandbox.
+private struct LocalImageAccessBanner: View {
+    let onAllow: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("This document references local images.")
+                    .font(.callout)
+                    .fontWeight(.medium)
+                Text("Allow access to its folder so they can be displayed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            Button(action: onAllow) {
+                Text("Allow Access…")
+            }
+            .controlSize(.small)
+            .buttonStyle(.borderedProminent)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .padding(4)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(Text("Dismiss"))
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
+        .frame(maxWidth: 540)
     }
 }

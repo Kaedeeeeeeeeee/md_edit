@@ -32,6 +32,14 @@ final class EditorSchemeHandler: NSObject, WKURLSchemeHandler {
     /// current document's parent-dir grant changes.
     var accessGrants: [AccessGrant] = []
 
+    /// Directory of the document currently shown in the editor.  Markdown
+    /// image references like `style-check.png` are relative to *this*
+    /// directory — not the editor's `marktext-editor://app/` page root, which
+    /// is where WebKit resolves them before handing them to us.  Resolved
+    /// against here first (see `loadDocumentRelative`).  Set by
+    /// `EditorWebView.updateNSView` alongside `accessGrants`.
+    var documentDirectory: URL?
+
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else {
             DebugLog.write("[scheme] no URL on task")
@@ -51,6 +59,20 @@ final class EditorSchemeHandler: NSObject, WKURLSchemeHandler {
         // honour the same containment check, so a markdown reference can't
         // escape its scope into arbitrary disk locations.
         if let data = loadFromBundle(relative: relative) {
+            respond(urlSchemeTask, url: url, data: data)
+            return
+        }
+
+        // Document-relative resolution.  WebKit resolved a markdown reference
+        // like `style-check.png` against the page root (`marktext-editor://
+        // app/`), losing the fact that it's relative to the *document's*
+        // directory.  Re-resolve against that directory so a sibling image
+        // next to the `.md` (or `images/foo.png` in a subfolder) loads — even
+        // when the document lives in a workspace subdirectory.  The read is
+        // gated on containment within an authorised root, so a `..`-laden
+        // reference can't escape the workspace / granted directory.
+        if let docDir = documentDirectory,
+           let data = loadDocumentRelative(relative: relative, docDir: docDir) {
             respond(urlSchemeTask, url: url, data: data)
             return
         }
@@ -84,6 +106,22 @@ final class EditorSchemeHandler: NSObject, WKURLSchemeHandler {
         let root = grant.url.standardizedFileURL
         let candidate = root.appendingPathComponent(relative).standardizedFileURL
         guard isContained(candidate: candidate, in: root) else { return nil }
+        return try? Data(contentsOf: candidate)
+    }
+
+    /// Resolve `relative` against the open document's directory.  Only returns
+    /// data when the resolved file stays inside one of `accessGrants`: the
+    /// document directory is itself either a workspace subdirectory (covered
+    /// by the workspace grant) or a per-document bookmark grant, so that
+    /// containment check doubles as the read-permission gate.  Without a
+    /// covering grant we return nil and the caller falls through to a
+    /// `not found` — which is what surfaces the "Allow Access" banner.
+    private func loadDocumentRelative(relative: String, docDir: URL) -> Data? {
+        let candidate = docDir.appendingPathComponent(relative).standardizedFileURL
+        let authorised = accessGrants.contains {
+            isContained(candidate: candidate, in: $0.url.standardizedFileURL)
+        }
+        guard authorised else { return nil }
         return try? Data(contentsOf: candidate)
     }
 

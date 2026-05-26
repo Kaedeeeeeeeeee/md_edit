@@ -305,6 +305,12 @@ struct EditorWebView: NSViewRepresentable {
                 grants.append(.init(url: docDir, role: .docDir))
             }
             schemeHandler.accessGrants = grants
+            // Resolution base for the open document's relative image refs.
+            // The directory is only *readable* when it's inside one of the
+            // grants above; the scheme handler enforces that containment.
+            schemeHandler.documentDirectory = store.currentFileURL?
+                .deletingLastPathComponent()
+                .standardizedFileURL
         }
 
         private func resolveUpload(requestId: String, url: String) {

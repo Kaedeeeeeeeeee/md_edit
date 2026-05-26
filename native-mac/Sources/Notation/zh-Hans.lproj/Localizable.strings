@@ -225,3 +225,11 @@
 // API key status
 "Saved: %@" = "已保存：%@";
 "Failed to save (see debug log)" = "保存失败（详见调试日志）";
+
+// Local-image folder access banner (single file opened outside a workspace)
+"This document references local images." = "此文档引用了本地图片。";
+"Allow access to its folder so they can be displayed." = "允许访问其所在文件夹即可显示。";
+"Allow Access…" = "允许访问…";
+"Allow Access" = "允许访问";
+"Allow Notation to read the folder containing “%@” so this document’s local images can be displayed." = "允许 Notation 读取包含“%@”的文件夹，以显示本文档中的本地图片。";
+"Dismiss" = "关闭";
