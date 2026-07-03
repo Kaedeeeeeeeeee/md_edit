@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @Environment(DocumentStore.self) private var store
@@ -63,6 +64,7 @@ struct ContentView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .onAppear {
+            syncDocumentEditedDot(store.isDirty)
             // On first appearance, hide the sidebar if we opened straight to
             // a single file (Finder "Open With" or `open foo.md`).  When the
             // user is inside a workspace, sidebar stays at its default `.all`.
@@ -84,9 +86,21 @@ struct ContentView: View {
             // document changes (workspace navigation, recent file, etc).
             agentChat.bind(to: newURL)
         }
+        .onChange(of: store.isDirty) { _, dirty in
+            syncDocumentEditedDot(dirty)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .aiAgentToggleRequested)) { _ in
             agentChat.toggle()
         }
+    }
+
+    /// Mirror dirty state into the close button's system dot — the
+    /// macOS-wide "unsaved document" convention (TextEdit, Pages).  The
+    /// titlebar ● carries the same signal, but the close-button dot reads
+    /// even when the title is truncated or the user glances at traffic
+    /// lights only.
+    private func syncDocumentEditedDot(_ dirty: Bool) {
+        (NSApp.delegate as? AppDelegate)?.mainWindow?.isDocumentEdited = dirty
     }
 
     private var documentTitle: String {

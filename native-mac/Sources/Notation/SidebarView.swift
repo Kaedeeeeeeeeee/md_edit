@@ -116,6 +116,7 @@ struct SidebarView: View {
 private struct WorkspaceHeader: View {
     @Environment(DocumentStore.self) private var store
     @Binding var recents: [(url: URL, displayName: String)]
+    @State private var hovering = false
 
     var body: some View {
         Menu {
@@ -169,10 +170,19 @@ private struct WorkspaceHeader: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Hover wash matching the file rows' faint gray — without it
+            // the header gives no hint that it's clickable at all.
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(hovering
+                          ? Color(nsColor: .quaternaryLabelColor).opacity(0.5)
+                          : Color.clear)
+            )
             .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
+        .onHover { hovering = $0 }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
     }
@@ -205,6 +215,10 @@ private struct SidebarFooter: View {
     let itemCount: Int
 
     var body: some View {
+        // Two actions only: New File / New Folder.  Workspace switching
+        // used to have a third button here but it duplicated the header
+        // menu (and the File menu's ⌘⌥O) — removed so the bar reads as
+        // "create things", full stop.
         HStack(spacing: 6) {
             Button {
                 store.createNewFile(in: targetFolder())
@@ -214,7 +228,7 @@ private struct SidebarFooter: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 24, height: 24)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.accessoryBar)
             .help("New File")
             .disabled(store.folderURL == nil)
 
@@ -226,25 +240,14 @@ private struct SidebarFooter: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 24, height: 24)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.accessoryBar)
             .help("New Folder")
             .disabled(store.folderURL == nil)
-
-            Button {
-                store.openFolderDialog()
-            } label: {
-                Image(systemName: "folder")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.borderless)
-            .help("Open / Switch Workspace…")
 
             Spacer()
 
             if itemCount > 0 {
-                Text("\(itemCount) item\(itemCount == 1 ? "" : "s")")
+                Text(countText)
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
@@ -252,6 +255,12 @@ private struct SidebarFooter: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
+    }
+
+    private var countText: String {
+        itemCount == 1
+            ? String(localized: "1 item")
+            : String(format: String(localized: "%d items"), itemCount)
     }
 
     /// If exactly one folder is selected, new items go inside it.
@@ -287,7 +296,7 @@ private struct NodeRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             rowBody
-            if node.isDirectory, expanded.contains(node.url) {
+            if node.isDirectory, isExpanded {
                 ForEach(node.children) { child in
                     NodeRow(
                         node: child,
@@ -318,16 +327,17 @@ private struct NodeRow: View {
         }
         .padding(.leading, CGFloat(depth) * 14 + 4)
         .padding(.trailing, 6)
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 5)
+            RoundedRectangle(cornerRadius: 6)
                 .fill(rowBackground)
         )
         .overlay(
             // Drop highlight: faint accent stroke when a drag is hovering
-            // a folder row.
-            RoundedRectangle(cornerRadius: 5)
+            // a folder row.  Accent is fine here — it's a transient action
+            // state, not a persistent selection.
+            RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(
                     dropTargeted ? Color.accentColor.opacity(0.6) : Color.clear,
                     lineWidth: 1.5
@@ -419,9 +429,13 @@ private struct NodeRow: View {
     @ViewBuilder
     private var chevron: some View {
         if node.isDirectory {
-            Image(systemName: expanded.contains(node.url) ? "chevron.down" : "chevron.right")
+            // One glyph rotating in place (not a right/down symbol swap) so
+            // the disclosure animates like a native outline view.
+            Image(systemName: "chevron.right")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .animation(.easeOut(duration: 0.15), value: isExpanded)
                 .frame(width: 12, alignment: .center)
         } else {
             Color.clear.frame(width: 12, height: 12)
@@ -430,28 +444,46 @@ private struct NodeRow: View {
 
     @ViewBuilder
     private var icon: some View {
-        Image(systemName: node.isDirectory ? "folder.fill" : "doc.text")
+        Image(systemName: iconName)
             .foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
             .font(.system(size: 13))
             .frame(width: 16, alignment: .center)
     }
 
-    /// Background colour layering:
-    ///   - Active editor file: existing quaternary gray
-    ///   - In multi-selection: faint accent
-    ///   - Hovered: faint gray
-    /// They stack additively when overlapping.
+    private var iconName: String {
+        if node.isDirectory { return "folder.fill" }
+        return isOpenDocument ? "doc.text.fill" : "doc.text"
+    }
+
+    /// Background colour layering — deliberately all-gray. The selection
+    /// language of this sidebar is achromatic (Notes-style); accent colour
+    /// is reserved for folder glyphs and the transient drop ring.
+    /// First match wins:
+    ///   - Selected (single or ⌘/Shift multi): the system's "unemphasized"
+    ///     selection gray — what native list views show when not key.
+    ///     Adapts to dark mode for free.
+    ///   - Open in editor but selection elsewhere: weaker quaternary gray.
+    ///   - Hovered: faintest gray.
     private var rowBackground: Color {
         if isSelected {
-            return Color.accentColor.opacity(0.18)
+            return Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
         }
-        if !node.isDirectory, store.currentFileURL?.standardizedFileURL == node.url.standardizedFileURL {
+        if isOpenDocument {
             return Color(nsColor: .quaternaryLabelColor).opacity(0.9)
         }
         if !node.isDirectory, hovering {
             return Color(nsColor: .quaternaryLabelColor).opacity(0.5)
         }
         return .clear
+    }
+
+    /// True when this row's file is the document open in the editor.
+    /// Drives both the stronger background and the filled glyph, so the
+    /// open document stays identifiable after the selection highlight
+    /// moves elsewhere (⌘-click, folder click).
+    private var isOpenDocument: Bool {
+        !node.isDirectory
+            && store.currentFileURL?.standardizedFileURL == node.url.standardizedFileURL
     }
 
     private var displayName: String {
@@ -474,6 +506,10 @@ private struct NodeRow: View {
 
     private var isRenaming: Bool {
         renamingURL == node.url
+    }
+
+    private var isExpanded: Bool {
+        expanded.contains(node.url)
     }
 
     // MARK: - Interaction
@@ -605,9 +641,13 @@ private struct EmptySidebar: View {
             Text("No notes yet")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Text("Click ✎ or 📁+ below to create one")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            // Direct affordance instead of a caption pointing at the
+            // footer buttons.
+            Button("New File") {
+                store.createNewFile()
+            }
+            .controlSize(.small)
+            .disabled(store.folderURL == nil)
             Spacer()
         }
         .frame(maxWidth: .infinity)
