@@ -49,15 +49,17 @@ final class SidebarResponderView: NSView {
     override func keyDown(with event: NSEvent) {
         // 51 = delete (⌫), 117 = forward delete.
         if event.keyCode == 51 || event.keyCode == 117,
-           !(store?.selection.isEmpty ?? true) {
+           !(store?.sidebar.selection.isEmpty ?? true) {
             store?.deleteSelection()
             return
         }
         super.keyDown(with: event)
     }
 
-    @objc func copy(_ sender: Any?) { store?.copySelection() }
-    @objc func cut(_ sender: Any?) { store?.cutSelection() }
+    // Cut/Copy are pure selection→clipboard moves (SidebarState); Paste
+    // performs file operations, so it routes through the store.
+    @objc func copy(_ sender: Any?) { store?.sidebar.copySelection() }
+    @objc func cut(_ sender: Any?) { store?.sidebar.cutSelection() }
     @objc func paste(_ sender: Any?) { store?.paste(into: nil) }
 }
 

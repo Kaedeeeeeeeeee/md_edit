@@ -11,16 +11,6 @@ struct FileNode: Identifiable, Hashable {
     let children: [FileNode]
 }
 
-/// Pasteboard-like state held on `DocumentStore` so menu-bar commands and
-/// the sidebar context menu can coordinate Cut/Copy/Paste across the
-/// whole window.  When `op == .cut`, the rows render at half opacity so
-/// the user remembers they have a pending move.
-struct SidebarClipboard: Equatable {
-    enum Op { case cut, copy }
-    var urls: [URL]
-    var op: Op
-}
-
 @MainActor
 @Observable
 final class DocumentStore {
@@ -45,27 +35,13 @@ final class DocumentStore {
     /// the readability probe touches security-scoped bookmarks).
     var localImageAuthNeeded: Bool = false
 
-    // MARK: - Sidebar selection / clipboard
+    // MARK: - Sidebar UI state
     //
-    // `currentFileURL` is the document open in the editor.  `selection` is
-    // an orthogonal multi-selection used by the sidebar UI for batch
-    // operations (delete, drag-drop, cut/copy/paste).  They overlap when
-    // the user clicks one file (selection = [that file]); they diverge
-    // when the user ⌘-clicks to add files without changing the editor.
-    // All URLs are stored standardised so `Set` membership is stable.
-
-    /// Multi-selection.  Cleared by `loadFile`/`newDocument` so it never
-    /// references stale URLs.  Mutated by NodeRow click handlers and
-    /// menu-bar commands.
-    var selection: Set<URL> = []
-
-    /// Anchor for Shift+click range selection — the URL of the last row
-    /// the user clicked without holding ⌘.  Nil after `clearSelection()`.
-    var anchorURL: URL?
-
-    /// Cut/Copy pasteboard, consumed by `paste(into:)`.  `op == .cut`
-    /// items render at 50% opacity in the sidebar.
-    var clipboard: SidebarClipboard?
+    // `currentFileURL` is the document open in the editor; `sidebar`
+    // holds the orthogonal tree-UI state — multi-selection, cut/copy
+    // clipboard, disclosed folders.  See `SidebarState` for semantics.
+    // File operations below keep it consistent via translate/remove.
+    let sidebar = SidebarState()
 
     private var autoSaveTask: Task<Void, Never>?
     private let folderWatcher = FolderWatcher()
@@ -501,22 +477,10 @@ final class DocumentStore {
     /// Update every URL-keyed piece of state when a path on disk moves
     /// from `old` to `new`.  Called by rename/move/paste.
     private func translateURL(from old: URL, to new: URL) {
-        let oldStd = old.standardizedFileURL
-        let newStd = new.standardizedFileURL
-        if currentFileURL?.standardizedFileURL == oldStd {
+        if currentFileURL?.standardizedFileURL == old.standardizedFileURL {
             currentFileURL = new
         }
-        if selection.contains(oldStd) {
-            selection.remove(oldStd)
-            selection.insert(newStd)
-        }
-        if anchorURL?.standardizedFileURL == oldStd {
-            anchorURL = newStd
-        }
-        if var clip = clipboard {
-            clip.urls = clip.urls.map { $0.standardizedFileURL == oldStd ? newStd : $0 }
-            clipboard = clip
-        }
+        sidebar.translate(from: old, to: new)
     }
 
     /// Single-URL delete — kept as a convenience.  Forwards to `delete(_:[URL])`.
@@ -555,12 +519,7 @@ final class DocumentStore {
                 if currentFileURL?.standardizedFileURL == url {
                     trashedOpenDoc = true
                 }
-                selection.remove(url)
-                if anchorURL?.standardizedFileURL == url { anchorURL = nil }
-                if var clip = clipboard {
-                    clip.urls.removeAll { $0.standardizedFileURL == url }
-                    clipboard = clip.urls.isEmpty ? nil : clip
-                }
+                sidebar.remove(url)
                 DebugLog.write("[fileop] trashed \(url.lastPathComponent)")
             } catch {
                 DebugLog.write("[fileop] trash FAILED \(url.lastPathComponent): \(error.localizedDescription)")
@@ -580,10 +539,10 @@ final class DocumentStore {
         rebuildFileTree()
     }
 
-    /// Delete every URL currently in `selection`.  Used by the Delete key
-    /// and the Edit menu's "Delete Selection" command.
+    /// Delete every URL currently in the sidebar selection.  Used by the
+    /// Delete key and the Edit menu's "Delete Selection" command.
     func deleteSelection() {
-        delete(Array(selection))
+        delete(Array(sidebar.selection))
     }
 
     // MARK: - Move / Copy / Paste
@@ -648,41 +607,26 @@ final class DocumentStore {
         return newURLs
     }
 
-    /// Mark the current selection for a Cut operation.  Items render at
-    /// 50% opacity in the sidebar until pasted or another clipboard op
-    /// replaces them.
-    func cutSelection() {
-        guard !selection.isEmpty else { return }
-        clipboard = SidebarClipboard(urls: Array(selection), op: .cut)
-        DebugLog.write("[sidebar] cut \(selection.count) items")
-    }
-
-    /// Mark the current selection for a Copy operation.
-    func copySelection() {
-        guard !selection.isEmpty else { return }
-        clipboard = SidebarClipboard(urls: Array(selection), op: .copy)
-        DebugLog.write("[sidebar] copy \(selection.count) items")
-    }
-
-    /// Consume `self.clipboard` into the destination directory.
+    /// Consume the sidebar clipboard into the destination directory.
     /// `into == nil` → resolve to a sensible default: single-selected
     /// folder → that folder; selected file → its parent; otherwise →
-    /// workspace root.
+    /// workspace root.  Lives here (not on SidebarState) because it
+    /// performs the actual file operations.
     func paste(into requestedDest: URL?) {
-        guard let clip = clipboard else { return }
+        guard let clip = sidebar.clipboard else { return }
         let dest = requestedDest ?? defaultPasteDestination()
         guard let dest else { return }
         switch clip.op {
         case .cut:
             let newURLs = move(clip.urls, into: dest)
             if !newURLs.isEmpty {
-                clipboard = nil
-                selection = Set(newURLs.map { $0.standardizedFileURL })
+                sidebar.clipboard = nil
+                sidebar.selection = Set(newURLs.map { $0.standardizedFileURL })
             }
         case .copy:
             let newURLs = copy(clip.urls, into: dest)
             if !newURLs.isEmpty {
-                selection = Set(newURLs.map { $0.standardizedFileURL })
+                sidebar.selection = Set(newURLs.map { $0.standardizedFileURL })
             }
         }
     }
@@ -690,7 +634,7 @@ final class DocumentStore {
     /// Workspace root if no selection, else the parent of the first
     /// selected item (or the item itself if it's a folder).
     private func defaultPasteDestination() -> URL? {
-        if selection.count == 1, let only = selection.first {
+        if sidebar.selection.count == 1, let only = sidebar.selection.first {
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: only.path, isDirectory: &isDir), isDir.boolValue {
                 return only
@@ -700,74 +644,35 @@ final class DocumentStore {
         return folderURL
     }
 
-    // MARK: - Selection helpers
+    // MARK: - Selection coordination
 
-    /// Plain click semantics: select only this URL, set anchor, and
-    /// load the file into the editor if it's a file (folders just
-    /// toggle their own expansion state in the caller).
+    /// Plain click on a row: select only this URL, and load the file
+    /// into the editor when it's a file (folders just toggle their own
+    /// expansion state in the caller).  Pure selection mechanics live on
+    /// `sidebar`; this wrapper adds the "clicking a file opens it"
+    /// coordination, which is exactly the part that needs the document
+    /// side of the store.
     func selectOnly(_ url: URL, loadIfFile: Bool = true) {
-        let std = url.standardizedFileURL
-        selection = [std]
-        anchorURL = std
+        sidebar.selectOnly(url)
         if loadIfFile {
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
                !isDir.boolValue,
-               currentFileURL?.standardizedFileURL != std {
+               currentFileURL?.standardizedFileURL != url.standardizedFileURL {
                 loadFile(url)
             }
         }
     }
 
-    /// ⌘+click semantics: toggle membership in selection without
-    /// changing the editor's open document.  Sets anchor on add.
-    func toggleSelection(_ url: URL) {
-        let std = url.standardizedFileURL
-        if selection.contains(std) {
-            selection.remove(std)
-            if anchorURL == std { anchorURL = nil }
-        } else {
-            selection.insert(std)
-            anchorURL = std
-        }
-    }
-
-    /// Shift+click semantics: extend `selection` from `anchorURL` to
-    /// `url` along the visible row order.  No-op if anchor is nil
-    /// (falls back to plain click).
-    func extendSelection(to url: URL, visibleOrder: [URL]) {
-        let std = url.standardizedFileURL
-        guard let anchor = anchorURL?.standardizedFileURL else {
-            selectOnly(url)
-            return
-        }
-        let standardised = visibleOrder.map { $0.standardizedFileURL }
-        guard let i = standardised.firstIndex(of: anchor),
-              let j = standardised.firstIndex(of: std) else {
-            selectOnly(url)
-            return
-        }
-        let lo = min(i, j)
-        let hi = max(i, j)
-        selection = Set(standardised[lo...hi])
-    }
-
-    /// Clear all multi-selection but keep the editor's open document
-    /// alone — clicking the empty sidebar background does this.
-    func clearSelection() {
-        selection.removeAll()
-        anchorURL = nil
-    }
-
     /// Compute the flat top-to-bottom visible URL order from the file
-    /// tree given the set of expanded folder URLs.  Used by Shift+click
-    /// range selection.
-    func flattenedVisibleURLs(expanded: Set<URL>) -> [URL] {
+    /// tree and the sidebar's disclosed folders.  Used by Shift+click
+    /// range selection.  Lives here because it needs `fileTree`.
+    func flattenedVisibleURLs() -> [URL] {
         var result: [URL] = []
         func walk(_ nodes: [FileNode]) {
             for node in nodes {
                 result.append(node.url)
-                if node.isDirectory, expanded.contains(node.url) {
+                if node.isDirectory, sidebar.expanded.contains(node.url) {
                     walk(node.children)
                 }
             }

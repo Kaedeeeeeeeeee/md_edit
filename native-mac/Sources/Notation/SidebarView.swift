@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SidebarView: View {
     @Environment(DocumentStore.self) private var store
-    @State private var expanded: Set<URL> = []
     @State private var didAutoExpand = false
     @State private var recents: [(url: URL, displayName: String)] = WorkspaceBookmark.recentWorkspaces()
 
@@ -47,7 +46,7 @@ struct SidebarView: View {
         .onChange(of: store.folderURL) { _, _ in
             recents = WorkspaceBookmark.recentWorkspaces()
             // Workspace switch → selection becomes meaningless.
-            store.clearSelection()
+            store.sidebar.clear()
             renamingURL = nil
         }
     }
@@ -63,7 +62,6 @@ struct SidebarView: View {
                         NodeRow(
                             node: node,
                             depth: 0,
-                            expanded: $expanded,
                             renamingURL: $renamingURL
                         )
                     }
@@ -76,7 +74,7 @@ struct SidebarView: View {
                     didAutoExpand = true
                     // Open the first folder so the tree isn't an empty wall on launch.
                     if let first = store.fileTree.first(where: \.isDirectory) {
-                        expanded.insert(first.url)
+                        store.sidebar.expanded.insert(first.url)
                     }
                 }
             }
@@ -90,7 +88,7 @@ struct SidebarView: View {
             .disabled(store.folderURL == nil)
         Button("New Folder at root") { store.createNewFolder() }
             .disabled(store.folderURL == nil)
-        if store.clipboard != nil {
+        if store.sidebar.clipboard != nil {
             Divider()
             Button("Paste") { store.paste(into: nil) }
         }
@@ -103,7 +101,7 @@ struct SidebarView: View {
     }
 
     private var visibleCount: Int {
-        store.flattenedVisibleURLs(expanded: expanded).count
+        store.flattenedVisibleURLs().count
     }
 
     private func cancelRenaming() {
@@ -266,7 +264,8 @@ private struct SidebarFooter: View {
     /// If exactly one folder is selected, new items go inside it.
     /// Otherwise they land at workspace root.
     private func targetFolder() -> URL? {
-        guard store.selection.count == 1, let only = store.selection.first else {
+        guard store.sidebar.selection.count == 1,
+              let only = store.sidebar.selection.first else {
             return nil
         }
         var isDir: ObjCBool = false
@@ -285,7 +284,6 @@ private struct NodeRow: View {
     @Environment(\.sidebarResponderHandle) private var responderHandle
     let node: FileNode
     let depth: Int
-    @Binding var expanded: Set<URL>
     @Binding var renamingURL: URL?
 
     @State private var hovering = false
@@ -301,7 +299,6 @@ private struct NodeRow: View {
                     NodeRow(
                         node: child,
                         depth: depth + 1,
-                        expanded: $expanded,
                         renamingURL: $renamingURL
                     )
                 }
@@ -496,11 +493,11 @@ private struct NodeRow: View {
     }
 
     private var isSelected: Bool {
-        store.selection.contains(node.url.standardizedFileURL)
+        store.sidebar.selection.contains(node.url.standardizedFileURL)
     }
 
     private var isCutPending: Bool {
-        guard let clip = store.clipboard, clip.op == .cut else { return false }
+        guard let clip = store.sidebar.clipboard, clip.op == .cut else { return false }
         return clip.urls.contains { $0.standardizedFileURL == node.url.standardizedFileURL }
     }
 
@@ -509,7 +506,7 @@ private struct NodeRow: View {
     }
 
     private var isExpanded: Bool {
-        expanded.contains(node.url)
+        store.sidebar.expanded.contains(node.url)
     }
 
     // MARK: - Interaction
@@ -521,20 +518,19 @@ private struct NodeRow: View {
         // Paste/Delete validate against this selection.
         responderHandle.makeKey()
         if modifiers.contains(.command) {
-            store.toggleSelection(node.url)
+            store.sidebar.toggle(node.url)
             return
         }
         if modifiers.contains(.shift) {
-            let visible = store.flattenedVisibleURLs(expanded: expanded)
-            store.extendSelection(to: node.url, visibleOrder: visible)
+            store.sidebar.extend(to: node.url, visibleOrder: store.flattenedVisibleURLs())
             return
         }
         // Plain tap.
         if node.isDirectory {
-            if expanded.contains(node.url) {
-                expanded.remove(node.url)
+            if isExpanded {
+                store.sidebar.expanded.remove(node.url)
             } else {
-                expanded.insert(node.url)
+                store.sidebar.expanded.insert(node.url)
             }
             store.selectOnly(node.url, loadIfFile: false)
         } else {
@@ -547,7 +543,7 @@ private struct NodeRow: View {
         // Finder) so the visual highlight tracks what's actually being
         // dragged.
         let std = node.url.standardizedFileURL
-        if !store.selection.contains(std) {
+        if !store.sidebar.selection.contains(std) {
             store.selectOnly(node.url, loadIfFile: false)
         }
         DebugLog.write("[drag] start url=\(node.url.lastPathComponent)")
@@ -591,8 +587,8 @@ private struct NodeRow: View {
         Button("Move to Trash", role: .destructive) {
             // If this row is part of a multi-selection, delete the whole
             // selection; otherwise just this row.
-            if store.selection.contains(node.url.standardizedFileURL),
-               store.selection.count > 1 {
+            if store.sidebar.selection.contains(node.url.standardizedFileURL),
+               store.sidebar.selection.count > 1 {
                 store.deleteSelection()
             } else {
                 store.delete(node.url)
