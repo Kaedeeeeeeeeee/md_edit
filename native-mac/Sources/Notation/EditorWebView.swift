@@ -275,7 +275,7 @@ struct EditorWebView: NSViewRepresentable {
 
         private func writeImage(data: Data, ext: String, in scope: URL, requestId: String, store: DocumentStore) {
             do {
-                let relativePath = try store.saveImageToAttachments(data: data, ext: ext, in: scope)
+                let relativePath = try store.workspace.saveImageToAttachments(data: data, ext: ext, in: scope)
                 resolveUpload(requestId: requestId, url: relativePath)
             } catch {
                 rejectUpload(requestId: requestId, message: error.localizedDescription)
@@ -283,24 +283,24 @@ struct EditorWebView: NSViewRepresentable {
         }
 
         /// Recompute the scheme handler's allowed read roots based on
-        /// `store.folderURL` and the current document's parent-dir grant.
+        /// `store.workspace.folderURL` and the current document's parent-dir grant.
         /// Called from `updateNSView` (every store change) and from
         /// `makeNSView` (initial setup).
         func refreshAccessGrants() {
             guard let store, let schemeHandler else { return }
             var grants: [EditorSchemeHandler.AccessGrant] = []
-            if let folder = store.folderURL {
+            if let folder = store.workspace.folderURL {
                 grants.append(.init(url: folder, role: .workspace))
             }
             // Floating doc?  Look up its parent-dir grant if one already
             // exists (don't prompt — that only happens on user paste).
             if let fileURL = store.document.currentFileURL,
-               let folder = store.folderURL,
+               let folder = store.workspace.folderURL,
                !FilePaths.contains(parent: folder, child: fileURL),
                let docDir = DocumentDirBookmarks.grant(for: fileURL) {
                 grants.append(.init(url: docDir, role: .docDir))
             } else if let fileURL = store.document.currentFileURL,
-                      store.folderURL == nil,
+                      store.workspace.folderURL == nil,
                       let docDir = DocumentDirBookmarks.grant(for: fileURL) {
                 grants.append(.init(url: docDir, role: .docDir))
             }

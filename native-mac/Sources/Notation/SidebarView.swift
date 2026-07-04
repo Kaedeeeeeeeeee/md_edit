@@ -28,7 +28,7 @@ struct SidebarView: View {
                 // folder out onto this area to move it up to the root.
                 .dropDestination(for: URL.self) { urls, _ in
                     DebugLog.write("[drag] root drop urls=\(urls.count)")
-                    guard let folder = store.folderURL else { return false }
+                    guard let folder = store.workspace.folderURL else { return false }
                     cancelRenaming()
                     let moved = store.move(urls, into: folder)
                     return !moved.isEmpty
@@ -43,7 +43,7 @@ struct SidebarView: View {
         // WKWebView when the editor is focused.
         .background(SidebarResponder(store: store, handle: responderHandle))
         .environment(\.sidebarResponderHandle, responderHandle)
-        .onChange(of: store.folderURL) { _, _ in
+        .onChange(of: store.workspace.folderURL) { _, _ in
             recents = WorkspaceBookmark.recentWorkspaces()
             // Workspace switch → selection becomes meaningless.
             store.sidebar.clear()
@@ -53,12 +53,12 @@ struct SidebarView: View {
 
     @ViewBuilder
     private var content: some View {
-        if store.fileTree.isEmpty {
+        if store.workspace.fileTree.isEmpty {
             EmptySidebar()
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(store.fileTree) { node in
+                    ForEach(store.workspace.fileTree) { node in
                         NodeRow(
                             node: node,
                             depth: 0,
@@ -73,7 +73,7 @@ struct SidebarView: View {
                 if !didAutoExpand {
                     didAutoExpand = true
                     // Open the first folder so the tree isn't an empty wall on launch.
-                    if let first = store.fileTree.first(where: \.isDirectory) {
+                    if let first = store.workspace.fileTree.first(where: \.isDirectory) {
                         store.sidebar.expanded.insert(first.url)
                     }
                 }
@@ -85,15 +85,15 @@ struct SidebarView: View {
     @ViewBuilder
     private var rootContextMenu: some View {
         Button("New File at root") { store.createNewFile() }
-            .disabled(store.folderURL == nil)
+            .disabled(store.workspace.folderURL == nil)
         Button("New Folder at root") { store.createNewFolder() }
-            .disabled(store.folderURL == nil)
+            .disabled(store.workspace.folderURL == nil)
         if store.sidebar.clipboard != nil {
             Divider()
             Button("Paste") { store.paste(into: nil) }
         }
         Divider()
-        if let folder = store.folderURL {
+        if let folder = store.workspace.folderURL {
             Button("Reveal Workspace in Finder") {
                 store.revealInFinder(folder)
             }
@@ -120,11 +120,11 @@ private struct WorkspaceHeader: View {
         Menu {
             ForEach(menuRows, id: \.url.absoluteString) { entry in
                 Button {
-                    guard entry.url != store.folderURL else { return }
+                    guard entry.url != store.workspace.folderURL else { return }
                     store.adoptRecentWorkspace(entry.url)
                 } label: {
                     HStack {
-                        Image(systemName: entry.url == store.folderURL
+                        Image(systemName: entry.url == store.workspace.folderURL
                               ? "checkmark.circle.fill"
                               : "folder")
                         VStack(alignment: .leading) {
@@ -144,7 +144,7 @@ private struct WorkspaceHeader: View {
             } label: {
                 Label("Add Folder as Workspace…", systemImage: "folder.badge.plus")
             }
-            if let folder = store.folderURL {
+            if let folder = store.workspace.folderURL {
                 Button {
                     store.revealInFinder(folder)
                 } label: {
@@ -186,14 +186,14 @@ private struct WorkspaceHeader: View {
     }
 
     private var currentDisplayName: String {
-        store.folderURL?.lastPathComponent ?? "No workspace"
+        store.workspace.folderURL?.lastPathComponent ?? "No workspace"
     }
 
     /// Recents with the active workspace pinned at the top, even if it
     /// wasn't yet in the recents list (first-launch onboarding flow).
     private var menuRows: [(url: URL, displayName: String)] {
         var rows = recents
-        if let active = store.folderURL,
+        if let active = store.workspace.folderURL,
            !rows.contains(where: { $0.url == active }) {
             rows.insert((url: active, displayName: active.lastPathComponent), at: 0)
         }
@@ -228,7 +228,7 @@ private struct SidebarFooter: View {
             }
             .buttonStyle(.accessoryBar)
             .help("New File")
-            .disabled(store.folderURL == nil)
+            .disabled(store.workspace.folderURL == nil)
 
             Button {
                 store.createNewFolder(in: targetFolder())
@@ -240,7 +240,7 @@ private struct SidebarFooter: View {
             }
             .buttonStyle(.accessoryBar)
             .help("New Folder")
-            .disabled(store.folderURL == nil)
+            .disabled(store.workspace.folderURL == nil)
 
             Spacer()
 
@@ -643,7 +643,7 @@ private struct EmptySidebar: View {
                 store.createNewFile()
             }
             .controlSize(.small)
-            .disabled(store.folderURL == nil)
+            .disabled(store.workspace.folderURL == nil)
             Spacer()
         }
         .frame(maxWidth: .infinity)

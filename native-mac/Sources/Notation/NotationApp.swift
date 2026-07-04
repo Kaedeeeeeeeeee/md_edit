@@ -67,7 +67,7 @@ struct NotationApp: App {
                 .onChange(of: store.document.currentFileURL) { _, _ in
                     recentURLs = RecentFiles.shared.urls
                 }
-                .onChange(of: store.folderURL) { _, _ in
+                .onChange(of: store.workspace.folderURL) { _, _ in
                     recentWorkspaces = WorkspaceBookmark.recentWorkspaces()
                 }
                 .modifier(OpenURLForwarder(store: store))
@@ -147,10 +147,10 @@ struct NotationApp: App {
                     } else {
                         ForEach(recentWorkspaces, id: \.url.absoluteString) { entry in
                             Button {
-                                guard entry.url != store.folderURL else { return }
+                                guard entry.url != store.workspace.folderURL else { return }
                                 store.adoptRecentWorkspace(entry.url)
                             } label: {
-                                if entry.url == store.folderURL {
+                                if entry.url == store.workspace.folderURL {
                                     Label(entry.displayName, systemImage: "checkmark")
                                 } else {
                                     Text(entry.displayName)
@@ -213,10 +213,10 @@ struct NotationApp: App {
             CommandGroup(after: .windowList) {
                 Divider()
                 Button("Refresh File Tree") {
-                    store.rebuildFileTree()
+                    store.workspace.rebuildFileTree()
                 }
                 .keyboardShortcut("r")
-                .disabled(store.folderURL == nil)
+                .disabled(store.workspace.folderURL == nil)
             }
 
             CommandMenu("AI") {

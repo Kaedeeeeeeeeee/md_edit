@@ -207,8 +207,7 @@ struct OnboardingView: View {
 
     private func adopt(_ url: URL) {
         DebugLog.write("[onboard] adopting workspace: \(url.path)")
-        store.adoptFolder(url)
-        WorkspaceBookmark.save(url)
+        store.adoptWorkspaceFolder(url)
         UserDefaults.standard.set(true, forKey: "didShowFirstLaunchOnboarding")
     }
 

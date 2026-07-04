@@ -12,7 +12,7 @@ struct ContentView: View {
         // or saved bookmark unresolvable), show OnboardingView in place of
         // the editor.  Adopting a workspace flips `folderURL` and re-renders
         // into the NavigationSplitView path.
-        if store.folderURL == nil {
+        if store.workspace.folderURL == nil {
             OnboardingView()
         } else {
             editor
@@ -75,7 +75,7 @@ struct ContentView: View {
             // user opened an external file outside the vault — keep their
             // focus on that file.
             if let url = store.document.currentFileURL,
-               let folder = store.folderURL,
+               let folder = store.workspace.folderURL,
                !url.path.hasPrefix(folder.path) {
                 columnVisibility = .detailOnly
             }
@@ -109,7 +109,7 @@ struct ContentView: View {
     }
 
     private var folderTitle: String {
-        store.folderURL?.lastPathComponent ?? ""
+        store.workspace.folderURL?.lastPathComponent ?? ""
     }
 }
 
