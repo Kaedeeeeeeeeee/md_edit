@@ -60,6 +60,80 @@ final class AppModel {
         restoreSavedWorkspaceIfAvailable()
     }
 
+    // MARK: - Document opening / routing
+
+    /// Posted after `documentWindows` enqueues a window value; the main
+    /// scene's `DocumentWindowOpener` reacts by draining the queue into
+    /// `openWindow(id:"document", value:)`.  Notification + queue rather
+    /// than a plain notification payload so cold-launch opens that fire
+    /// before any view exists still land (the opener also drains on
+    /// appear).  Same environment-action-unreachable-from-AppKit problem
+    /// `.openMainRequested` solves for the main window.
+    static let openDocumentWindowRequested = Notification.Name("com.notation.openDocumentWindowRequested")
+
+    /// Single entry point for "open this markdown file", whatever the
+    /// source (Finder double-click, Open File…, Recents menu).  The
+    /// routing rule that retires the old hybrid state: files inside the
+    /// workspace load in the main window with the sidebar revealing the
+    /// row; anything else gets its own document window.
+    ///
+    /// `heldScope` is a STARTED security-scoped URL backing access to
+    /// `url` (bookmark-resolved opens).  Ownership transfers here:
+    /// released immediately for workspace files — the workspace grant
+    /// already covers them — and handed to the window registry
+    /// otherwise, to be released when that window closes.
+    func openDocument(at url: URL, heldScope: URL? = nil) {
+        let std = url.standardizedFileURL
+        if let folder = workspace.folderURL, FilePaths.contains(parent: folder, child: std) {
+            document.loadFile(std)
+            sidebar.selectOnly(std)
+            revealInSidebar(std)
+            heldScope?.stopAccessingSecurityScopedResource()
+            (NSApp.delegate as? AppDelegate)?.showMainWindow()
+        } else {
+            documentWindows.open(std, heldScope: heldScope)
+            NotificationCenter.default.post(name: Self.openDocumentWindowRequested, object: nil)
+        }
+    }
+
+    /// Open File… panel.  Lives here (not on DocumentSession) because the
+    /// picked file must be routed like any other open — the old
+    /// per-session dialog always loaded into its own editor, which is
+    /// exactly the hybrid state phase 2 removes.  No discard prompt:
+    /// workspace files replace the main document under the same
+    /// autosave-covers-it semantics as a sidebar click, and external
+    /// files don't touch the main document at all.
+    func openFileDialog() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = FilePaths.markdownContentTypes()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            openDocument(at: url)
+        }
+    }
+
+    /// Expand the folder chain leading to `url` so the just-selected row
+    /// is actually visible.  Walks the scanned tree and inserts the tree's
+    /// own node URLs — deriving ancestor URLs by path math would produce
+    /// URLs that fail `Set` equality against the scanner's (trailing-slash
+    /// representation differences).
+    private func revealInSidebar(_ url: URL) {
+        let targetPath = url.standardizedFileURL.path
+        func walk(_ nodes: [FileNode]) {
+            for node in nodes where node.isDirectory {
+                let dirPath = node.url.standardizedFileURL.path
+                let needle = dirPath.hasSuffix("/") ? dirPath : dirPath + "/"
+                if targetPath.hasPrefix(needle) {
+                    sidebar.expanded.insert(node.url)
+                    walk(node.children)
+                    return
+                }
+            }
+        }
+        walk(workspace.fileTree)
+    }
+
     // MARK: - Workspace adoption / registry
 
     func openFolderDialog() {

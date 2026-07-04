@@ -104,10 +104,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func deliverURL(_ url: URL, to store: AppModel) {
+        // If the URL carries its own security scope, keep it STARTED and
+        // hand ownership down — a document window needs the access alive
+        // for its whole lifetime, not just this call.  LaunchServices
+        // opens (Finder double-click) usually return false here and ride
+        // the implicit process-lifetime grant instead.
         let needsScope = url.startAccessingSecurityScopedResource()
-        defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
-        store.document.loadFile(url)
-        presentMainWindow()
+        store.openDocument(at: url, heldScope: needsScope ? url : nil)
     }
 
     /// Bring the main editor window to the front via direct AppKit calls.
@@ -119,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// EntitlementState, AppModel).  An AppKit-constructed window
     /// via `NSHostingView` would only have AppModel, and ContentView
     /// would crash reading the other environment values it needs.
-    private func presentMainWindow() {
+    func showMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
         if let mainWindow = mainWindow ?? findWindow(identifier: .notationMainWindow) {
             self.mainWindow = mainWindow

@@ -87,6 +87,7 @@ struct NotationApp: App {
                 }
                 .modifier(OpenURLForwarder(store: store))
                 .modifier(AppDelegateAttacher(store: store, didAttach: $didAttachDelegate))
+                .modifier(DocumentWindowOpener(store: store))
                 // Paywall mount: cold-launch trigger waits for StoreKit to
                 // settle (initialize is idempotent) before deciding, so we
                 // never flash the sheet to an already-Pro user.
@@ -278,15 +279,24 @@ private struct FileCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("New") { activeDocument.newDocument() }
-                .keyboardShortcut("n")
+            // New is deliberately NOT focus-routed: a new note always
+            // belongs to the workspace (untitled autosave needs a
+            // workspace to land in), so ⌘N from a document window jumps
+            // to the main window rather than blanking the external file.
+            Button("New") {
+                store.document.newDocument()
+                (NSApp.delegate as? AppDelegate)?.showMainWindow()
+            }
+            .keyboardShortcut("n")
 
             Divider()
 
             Button("Open Folder…") { store.openFolderDialog() }
                 .keyboardShortcut("o")
 
-            Button("Open File…") { activeDocument.openFileDialog() }
+            // Routed by workspace containment (main window vs document
+            // window) — see AppModel.openDocument.
+            Button("Open File…") { store.openFileDialog() }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
 
             Menu("Switch Workspace") {
@@ -319,7 +329,16 @@ private struct FileCommands: Commands {
                 } else {
                     ForEach(recentURLs, id: \.absoluteString) { url in
                         Button(url.lastPathComponent) {
-                            activeDocument.loadFile(url)
+                            // Re-arm the sandbox grant from the stored
+                            // bookmark before routing.  Ownership of the
+                            // started scope transfers into openDocument.
+                            if let started = RecentFiles.shared.beginAccess(matching: url) {
+                                store.openDocument(at: started, heldScope: started)
+                            } else {
+                                // No resolvable bookmark — try the raw URL;
+                                // workspace files don't need a scope.
+                                store.openDocument(at: url)
+                            }
                         }
                     }
                     Divider()
@@ -337,6 +356,31 @@ private struct FileCommands: Commands {
 
             Button("Save As…") { activeDocument.saveAs() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
+        }
+    }
+}
+
+/// Drains `DocumentWindowManager`'s queued window values into SwiftUI's
+/// `openWindow` action.  Lives on the main scene's root view: notification
+/// receipt covers the running-app case, the on-appear drain covers
+/// cold-launch file opens that arrive before any view exists.
+private struct DocumentWindowOpener: ViewModifier {
+    let store: AppModel
+    @Environment(\.openWindow) private var openWindow
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { drain() }
+            .onReceive(
+                NotificationCenter.default.publisher(for: AppModel.openDocumentWindowRequested)
+            ) { _ in
+                drain()
+            }
+    }
+
+    private func drain() {
+        for url in store.documentWindows.drainPendingWindowValues() {
+            openWindow(id: "document", value: url)
         }
     }
 }

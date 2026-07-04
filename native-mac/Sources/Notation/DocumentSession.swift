@@ -183,17 +183,6 @@ final class DocumentSession {
         loadEpoch += 1
     }
 
-    func openFileDialog() {
-        guard confirmDiscardIfDirty() else { return }
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = markdownTypes()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        if panel.runModal() == .OK, let url = panel.url {
-            loadFile(url)
-        }
-    }
-
     func loadFile(_ url: URL) {
         do {
             // Size guard — refuse files >20 MB so a stray log file can't
@@ -373,12 +362,4 @@ final class DocumentSession {
         return true
     }
 
-    // MARK: - Helpers
-
-    private func markdownTypes() -> [UTType] {
-        var types: [UTType] = [.plainText]
-        if let md = UTType(filenameExtension: "md") { types.append(md) }
-        if let mk = UTType(filenameExtension: "markdown") { types.append(mk) }
-        return types
-    }
 }

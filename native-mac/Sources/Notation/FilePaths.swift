@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 /// Path/filesystem helpers shared by the document and workspace layers.
 /// Extracted from the old `DocumentStore` so both `DocumentSession` and
@@ -37,5 +38,13 @@ enum FilePaths {
     static func isMarkdown(_ url: URL) -> Bool {
         let ext = url.pathExtension.lowercased()
         return ["md", "markdown", "mdown", "mkd"].contains(ext)
+    }
+
+    /// Allowed content types for markdown open panels.
+    static func markdownContentTypes() -> [UTType] {
+        var types: [UTType] = [.plainText]
+        if let md = UTType(filenameExtension: "md") { types.append(md) }
+        if let mk = UTType(filenameExtension: "markdown") { types.append(mk) }
+        return types
     }
 }
