@@ -61,9 +61,11 @@ md_edit/                              # 项目根（git remote: Kaedeeeeeeeeee/m
     │   ├── NotationApp.swift             # @main App scene + commands
     │   ├── AppDelegate.swift             # AppKit URL 路由 + 直接 NSWindow 操作
     │   ├── ContentView.swift             # NavigationSplitView 根 + onboarding 门
-    │   ├── AppModel.swift                # 协调层：持有下面三个状态层 + workspace 注册表
+    │   ├── AppModel.swift                # 协调层：三个状态层 + workspace 注册表 + openDocument 路由
     │   ├── WorkspaceSession.swift        # 工作区：文件夹、文件树、FSEvents、文件操作、附件
     │   ├── DocumentSession.swift         # 单文档生命周期：内容、dirty、autosave、编码
+    │   ├── DocumentWindowManager.swift   # 文档小窗注册表：每窗 session + scope + 待开窗队列
+    │   ├── DocumentWindowView.swift      # 文档小窗（纯编辑器、真关闭）+ DocumentCloseGuard
     │   ├── SidebarState.swift            # 侧栏 UI 态：多选、剪贴板、展开集合
     │   ├── SidebarView.swift             # 自写递归文件树（不用 List+OutlineGroup）
     │   ├── SidebarResponder.swift        # 侧栏 AppKit first-responder（Edit 菜单路由）
@@ -139,7 +141,17 @@ DocumentSession 上的 `loadEpoch: Int` 单调递增，编辑器在 `updateNSVie
 
 ### 9. 状态分层（B2 重构阶段 1，2026-07）
 
-原 `DocumentStore` 是约 1000 行的 god object，已拆四层：**AppModel**（协调层 + workspace 注册表 / bookmark 持久化，`@Environment` 里变量名仍叫 `store`）持有 **WorkspaceSession**（文件夹 / 树 / watcher / 全部文件操作 / 附件）、**DocumentSession**（单文档内容 / dirty / autosave，只通过 `workspaceRoot` / `onFileWritten` 两个注入闭包了解工作区）、**SidebarState**（纯侧栏 UI 态）。约定：文件操作返回"实际发生了什么"（move 返回 (from,to) 对、trash 返回真正删掉的 URL），由 AppModel 把后果应用到 document / sidebar。这是 B2 方向（游离单文件 → 独立文档小窗）的地基：阶段 2 给每个文档窗口注入自己的 DocumentSession。
+原 `DocumentStore` 是约 1000 行的 god object，已拆四层：**AppModel**（协调层 + workspace 注册表 / bookmark 持久化，`@Environment` 里变量名仍叫 `store`）持有 **WorkspaceSession**（文件夹 / 树 / watcher / 全部文件操作 / 附件）、**DocumentSession**（单文档内容 / dirty / autosave，只通过 `workspaceRoot` / `onFileWritten` 两个注入闭包了解工作区）、**SidebarState**（纯侧栏 UI 态）。约定：文件操作返回"实际发生了什么"（move 返回 (from,to) 对、trash 返回真正删掉的 URL），由 AppModel 把后果应用到 document / sidebar。
+
+### 10. 文档小窗 + 按包含关系路由（B2 阶段 2，2026-07）
+
+`AppModel.openDocument(at:heldScope:)` 是"打开一个 md"的唯一入口（Finder 双击 / Open File… / Recents 全走它）：workspace 内 → 主窗 + 侧栏展开选中；workspace 外 → 独立文档小窗（`WindowGroup(id:"document", for: URL.self)`，同 URL 二开自动聚焦既有窗）。杂交态（侧栏是工作区树、编辑器却是外部文件）从此不可达。要点：
+- **冷启动竞态**：Finder open 事件可能早于任何 SwiftUI 视图存在，AppKit 又调不到 `openWindow` 环境 action → `DocumentWindowManager` 维护待开窗队列，主 scene 的 `DocumentWindowOpener` 在 onReceive **和** onAppear 双路排空。
+- **scope 所有权转移**：`openDocument` 接收已 START 的 security-scoped URL；workspace 文件立刻释放（workspace grant 已覆盖），外部文件交给窗口注册表、关窗时释放。
+- **文档小窗真关闭**（`DocumentCloseGuard`，与主窗 orderOut 的 `CloseGuard` 是兄弟变体）；不参与状态恢复（`.restorationBehavior(.disabled)`），重启后重开走 Recents bookmark。
+- **RecentFiles 存 security-scoped bookmark**（`RecentFileBookmarks` key），修掉了"重启后工作区外最近文件消失/打不开"的沙盒 bug；渲染用 peek、点击才 resolve 单条。
+- **⌘N 不走焦点路由**：新建笔记永远属于工作区（Untitled autosave 需要落点），文档小窗里 ⌘N 会前置主窗。
+- 侧栏 reveal 必须插入树扫描产出的同一批 node.url（路径拼出来的 URL 会因结尾斜杠差异 Set 匹配失败）。
 
 ## 常用命令
 
@@ -176,7 +188,7 @@ rm -rf "$HOME/Library/Containers/com.shifengzhang.notation/Data/Library/Saved Ap
 ## 已知未做（deferred）
 
 - Mermaid 自定义块（同 KaTeX 但更重的 lib，没接）
-- 多窗口 / 多 tab
+- 多 tab；workspace 多窗（文档小窗已做，见决策 #10）
 - 文档内 Find & Replace
 - 跨文件搜索
 - 真代码签名（Team ID 已配但还在用 ad-hoc `-`）

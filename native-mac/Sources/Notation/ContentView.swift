@@ -5,7 +5,6 @@ struct ContentView: View {
     @Environment(AppModel.self) private var store
     @Environment(AgentChatController.self) private var agentChat
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var didSetInitialVisibility = false
 
     var body: some View {
         // Onboarding gate: if no workspace has been adopted yet (first launch,
@@ -28,22 +27,6 @@ struct ContentView: View {
                 .overlay(alignment: .top) {
                     TitleBarScrollEdge()
                 }
-                .overlay(alignment: .top) {
-                    if store.document.localImageAuthNeeded {
-                        LocalImageAccessBanner(
-                            onAllow: { store.document.authorizeCurrentDocumentFolder() },
-                            onDismiss: {
-                                withAnimation(.easeOut(duration: 0.18)) {
-                                    store.document.localImageAuthNeeded = false
-                                }
-                            }
-                        )
-                        .padding(.top, 50)
-                        .padding(.horizontal, 16)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                }
-                .animation(.easeOut(duration: 0.2), value: store.document.localImageAuthNeeded)
                 .overlay(alignment: .bottomTrailing) {
                     AgentOverlay()
                 }
@@ -71,20 +54,6 @@ struct ContentView: View {
         .focusedSceneValue(\.documentSession, store.document)
         .onAppear {
             syncDocumentEditedDot(store.document.isDirty)
-            // On first appearance, hide the sidebar if we opened straight to
-            // a single file (Finder "Open With" or `open foo.md`).  When the
-            // user is inside a workspace, sidebar stays at its default `.all`.
-            guard !didSetInitialVisibility else { return }
-            didSetInitialVisibility = true
-            // Now that onboarding always provides a workspace, the only way
-            // currentFileURL would be set with no fileTree entries is if the
-            // user opened an external file outside the vault — keep their
-            // focus on that file.
-            if let url = store.document.currentFileURL,
-               let folder = store.workspace.folderURL,
-               !url.path.hasPrefix(folder.path) {
-                columnVisibility = .detailOnly
-            }
             agentChat.bind(to: store.document.currentFileURL)
         }
         .onChange(of: store.document.currentFileURL) { _, newURL in
@@ -140,7 +109,3 @@ private struct TitleBarScrollEdge: View {
     }
 }
 
-// LocalImageAccessBanner moved to DocumentWindowView.swift — after phase-2
-// routing only document windows host files outside authorised roots.  The
-// overlay above still references it until the routing lands (phase 2.3
-// removes the main-window usage).
