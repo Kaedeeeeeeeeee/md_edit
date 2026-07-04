@@ -75,7 +75,7 @@ struct ContentView: View {
     /// even when the title is truncated or the user glances at traffic
     /// lights only.
     private func syncDocumentEditedDot(_ dirty: Bool) {
-        (NSApp.delegate as? AppDelegate)?.mainWindow?.isDocumentEdited = dirty
+        AppDelegate.shared?.mainWindow?.isDocumentEdited = dirty
     }
 
     private var documentTitle: String {

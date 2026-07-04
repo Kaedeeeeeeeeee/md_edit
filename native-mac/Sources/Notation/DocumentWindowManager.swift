@@ -1,6 +1,20 @@
 import Foundation
 import Observation
 
+/// Window-value wrapper for the document `WindowGroup`.
+///
+/// Deliberately NOT a bare `URL`: SwiftUI's scene system matches incoming
+/// file-open events against `WindowGroup(for: URL.self)` presentation
+/// types, and when it reroutes an event to that group it CLOSES the
+/// already-presented single `Window` (main) first — programmatic close,
+/// so CloseGuard's windowShouldClose never gets asked.  Wrapping the URL
+/// in a private type makes the group invisible to that matching; all
+/// document windows open exclusively through our own
+/// `openWindow(id:value:)` calls.
+struct DocumentWindowID: Codable, Hashable {
+    let url: URL
+}
+
 /// Registry of external-file document windows (B2 phase 2).
 ///
 /// One entry per open document window, keyed by standardized file URL.
@@ -36,7 +50,7 @@ final class DocumentWindowManager {
     /// `DocumentWindowOpener` drains on receipt AND on appear — the
     /// on-appear drain is what saves cold-launch Finder opens that fire
     /// before any view exists to observe the notification.
-    private var pendingWindowValues: [URL] = []
+    private var pendingWindowValues: [DocumentWindowID] = []
 
     /// Prepare (or reuse) the session for `url` and return the
     /// standardized URL to hand to `openWindow(value:)`.  Takes ownership
@@ -53,7 +67,7 @@ final class DocumentWindowManager {
             heldScope?.stopAccessingSecurityScopedResource()
             // Re-request the window anyway: `openWindow(value:)` for an
             // existing value focuses the window instead of duplicating it.
-            pendingWindowValues.append(std)
+            pendingWindowValues.append(DocumentWindowID(url: std))
             return std
         }
 
@@ -66,14 +80,14 @@ final class DocumentWindowManager {
         session.loadFile(std)
 
         entries[std] = Entry(session: session, scopeURL: heldScope)
-        pendingWindowValues.append(std)
+        pendingWindowValues.append(DocumentWindowID(url: std))
         DebugLog.write("[docwin] opened session for \(std.lastPathComponent) scope=\(heldScope != nil)")
         return std
     }
 
     /// Hand the queued window values to the SwiftUI side.  Called by
     /// `DocumentWindowOpener` from the main scene.
-    func drainPendingWindowValues() -> [URL] {
+    func drainPendingWindowValues() -> [DocumentWindowID] {
         let drained = pendingWindowValues
         pendingWindowValues.removeAll()
         return drained

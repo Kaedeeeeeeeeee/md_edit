@@ -89,10 +89,18 @@ final class AppModel {
             sidebar.selectOnly(std)
             revealInSidebar(std)
             heldScope?.stopAccessingSecurityScopedResource()
-            (NSApp.delegate as? AppDelegate)?.showMainWindow()
+            AppDelegate.shared?.showMainWindow()
         } else {
             documentWindows.open(std, heldScope: heldScope)
-            NotificationCenter.default.post(name: Self.openDocumentWindowRequested, object: nil)
+            // Async post: when several file-open Apple events arrive in
+            // quick succession (Finder "Open" on a multi-selection), a
+            // synchronous notification fired from inside the AE handler
+            // races SwiftUI's scene update — `openWindow` no-ops and the
+            // value stays stranded in the queue.  Deferring to a fresh
+            // main-runloop tick lets each open settle before the drain.
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: Self.openDocumentWindowRequested, object: nil)
+            }
         }
     }
 

@@ -145,13 +145,21 @@ DocumentSession 上的 `loadEpoch: Int` 单调递增，编辑器在 `updateNSVie
 
 ### 10. 文档小窗 + 按包含关系路由（B2 阶段 2，2026-07）
 
-`AppModel.openDocument(at:heldScope:)` 是"打开一个 md"的唯一入口（Finder 双击 / Open File… / Recents 全走它）：workspace 内 → 主窗 + 侧栏展开选中；workspace 外 → 独立文档小窗（`WindowGroup(id:"document", for: URL.self)`，同 URL 二开自动聚焦既有窗）。杂交态（侧栏是工作区树、编辑器却是外部文件）从此不可达。要点：
-- **冷启动竞态**：Finder open 事件可能早于任何 SwiftUI 视图存在，AppKit 又调不到 `openWindow` 环境 action → `DocumentWindowManager` 维护待开窗队列，主 scene 的 `DocumentWindowOpener` 在 onReceive **和** onAppear 双路排空。
+`AppModel.openDocument(at:heldScope:)` 是"打开一个 md"的唯一入口（Finder 双击 / Open File… / Recents 全走它）：workspace 内 → 主窗 + 侧栏展开选中；workspace 外 → 独立文档小窗（`WindowGroup(id:"document", for: DocumentWindowID.self)`，同 URL 二开自动聚焦既有窗）。杂交态（侧栏是工作区树、编辑器却是外部文件）从此不可达。要点：
+- **冷启动竞态**：Finder open 事件可能早于任何 SwiftUI 视图存在，AppKit 又调不到 `openWindow` 环境 action → `DocumentWindowManager` 维护待开窗队列，主 scene 的 `DocumentWindowOpener` 在 onReceive **和** onAppear 双路排空。多文件连开（Finder 多选 Open）时，通知必须 `DispatchQueue.main.async` 延后一个 runloop tick，否则在 AE handler 内同步 post 会赶上 SwiftUI scene 更新、`openWindow` 静默 no-op、值卡在队列里。
 - **scope 所有权转移**：`openDocument` 接收已 START 的 security-scoped URL；workspace 文件立刻释放（workspace grant 已覆盖），外部文件交给窗口注册表、关窗时释放。
 - **文档小窗真关闭**（`DocumentCloseGuard`，与主窗 orderOut 的 `CloseGuard` 是兄弟变体）；不参与状态恢复（`.restorationBehavior(.disabled)`），重启后重开走 Recents bookmark。
 - **RecentFiles 存 security-scoped bookmark**（`RecentFileBookmarks` key），修掉了"重启后工作区外最近文件消失/打不开"的沙盒 bug；渲染用 peek、点击才 resolve 单条。
 - **⌘N 不走焦点路由**：新建笔记永远属于工作区（Untitled autosave 需要落点），文档小窗里 ⌘N 会前置主窗。
 - 侧栏 reveal 必须插入树扫描产出的同一批 node.url（路径拼出来的 URL 会因结尾斜杠差异 Set 匹配失败）。
+
+### 11. macOS 26 上文档小窗踩的三个 SwiftUI/AppKit 坑（B2 阶段 2 调试）
+
+三个都花了单独的 debug session 定位，日志走 `NOTATION_STDOUT_LOG=1 ./Notation.app/Contents/MacOS/Notation`（容器 log 文件被 TCC 挡，直接终端跑二进制看 stdout 镜像）：
+
+1. **SwiftUI 的 AppDelegate adaptor 会把自己的 wrapper 装成 `NSApp.delegate`**，`NSApp.delegate as? AppDelegate` 在 macOS 26 返回 nil（回调仍转发给我们，但类型转换失败），悄悄打断了所有 AppKit 侧靠这个转换的调用点（窗口注册、showMainWindow、关闭按钮 dirty 圆点）。解法：`AppDelegate` 在 `init` 里把自己存进 `static weak var shared`，全部改走它。
+2. **SwiftUI 的文件打开事件路由会 `NSWindow._close` 掉当前呈现的 Window**：外部文件打开时，SwiftUI 的 `AppWindowsController.activateWindowForExternalEvent` 为了给事件找窗口，直接 `_close` 主窗（程序性关闭、**绕过 windowShouldClose**，CloseGuard 拦不到）。解法：`AppDelegate.applicationWillFinishLaunching` 里抢先 `NSAppleEventManager.setEventHandler` 认领 `kAEOpenDocuments`（在 AppKit 装它自己的 handler 之前），事件自己解析 URL 走 `openDocument`，SwiftUI 的 scene 路由再也碰不到。
+3. **`WindowGroup(for: URL.self)` 会被文件打开事件的 presentation-type 匹配命中**（触发坑 2）。解法：包一层不透明的 `DocumentWindowID { let url }` 当 presentation type，文档窗口只由我们自己的 `openWindow(id:value:)` 开，事件路由认不出它。
 
 ## 常用命令
 

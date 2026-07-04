@@ -76,7 +76,7 @@ struct NotationApp: App {
                         let guardian = closeGuard ?? CloseGuard(document: store.document)
                         guardian.attach(to: window)
                         closeGuard = guardian
-                        (NSApp.delegate as? AppDelegate)?.registerMainWindow(window)
+                        AppDelegate.shared?.registerMainWindow(window)
                     }
                 )
                 .onChange(of: store.document.currentFileURL) { _, _ in
@@ -116,6 +116,14 @@ struct NotationApp: App {
                     paywallStore.isPaywallVisible = newValue
                 }
         }
+        // Keep claiming external events so a cold-launch file open still
+        // materialises this scene with the full environment chain (the
+        // AppDelegate comment on showMainWindow relies on this).  The
+        // actual file routing happens in application(_:open:) — this
+        // declaration only affects which scene the event system presents.
+        // The document WindowGroup deliberately does NOT use URL as its
+        // presentation type so it can never win this routing (see
+        // DocumentWindowID).
         .handlesExternalEvents(matching: ["*"])
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
@@ -214,9 +222,12 @@ struct NotationApp: App {
         // WindowGroup gives dedup for free: `openWindow(value:)` for an
         // already-open URL focuses the existing window instead of spawning
         // a sibling.
-        WindowGroup(id: "document", for: URL.self) { $url in
-            if let url {
-                DocumentWindowView(fileURL: url)
+        // Presentation type is DocumentWindowID, NOT URL — a URL-typed
+        // group gets matched by SwiftUI's file-open event routing, which
+        // closes the main Window while rerouting (see DocumentWindowID).
+        WindowGroup(id: "document", for: DocumentWindowID.self) { $id in
+            if let id {
+                DocumentWindowView(fileURL: id.url)
                     .environment(store)
                     .environment(paywallStore)
                     .environment(EntitlementState.shared)
@@ -285,7 +296,7 @@ private struct FileCommands: Commands {
             // to the main window rather than blanking the external file.
             Button("New") {
                 store.document.newDocument()
-                (NSApp.delegate as? AppDelegate)?.showMainWindow()
+                AppDelegate.shared?.showMainWindow()
             }
             .keyboardShortcut("n")
 
@@ -379,8 +390,9 @@ private struct DocumentWindowOpener: ViewModifier {
     }
 
     private func drain() {
-        for url in store.documentWindows.drainPendingWindowValues() {
-            openWindow(id: "document", value: url)
+        for id in store.documentWindows.drainPendingWindowValues() {
+            DebugLog.write("[docwin] openWindow(value:) for \(id.url.lastPathComponent)")
+            openWindow(id: "document", value: id)
         }
     }
 }
@@ -400,9 +412,7 @@ private struct AppDelegateAttacher: ViewModifier {
             .onAppear {
                 if !didAttach {
                     didAttach = true
-                    if let delegate = NSApp.delegate as? AppDelegate {
-                        delegate.attach(store: store)
-                    }
+                    AppDelegate.shared?.attach(store: store)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .openMainRequested)) { _ in
@@ -427,7 +437,8 @@ private struct OpenURLForwarder: ViewModifier {
 
     func body(content: Content) -> some View {
         content.onOpenURL { url in
-            if let delegate = NSApp.delegate as? AppDelegate {
+            DebugLog.write("[onOpenURL] \(url.lastPathComponent)")
+            if let delegate = AppDelegate.shared {
                 delegate.openDocument(at: url)
             } else {
                 // Fallback for preview/test contexts without the AppKit delegate.

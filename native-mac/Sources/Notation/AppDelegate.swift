@@ -18,6 +18,19 @@ import SwiftUI
 /// `openWindow(id:)` is unreliable against an `orderOut`'d ghost window.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// The adaptor-created instance.  On macOS 26, SwiftUI installs its OWN
+    /// wrapper object as `NSApp.delegate` (delegate callbacks are forwarded
+    /// to us, but `NSApp.delegate as? AppDelegate` returns nil), which
+    /// silently broke every AppKit-side caller using that cast — window
+    /// registration, showMainWindow, the close-button dirty dot.  Reach the
+    /// real instance through this instead.
+    static private(set) weak var shared: AppDelegate?
+
+    override init() {
+        super.init()
+        AppDelegate.shared = self
+    }
+
     /// Latched from the App scene at startup so `application(_:open:)` can
     /// reach the document store without going through SwiftUI environment.
     weak var store: AppModel?
@@ -33,6 +46,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Drained from `NotationApp` once the store is attached.
     var pendingURLs: [URL] = []
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Claim the kAEOpenDocuments Apple event BEFORE AppKit installs its
+        // own handler during finishLaunching.  If AppKit gets it, the event
+        // flows into SwiftUI's wrapper delegate whose AppWindowsController.
+        // activateWindowForExternalEvent CLOSES the presented main Window
+        // (NSWindow._close — bypasses windowShouldClose, so CloseGuard
+        // can't intercept) before forwarding application(_:open:) to us.
+        // Owning the raw event keeps scene state untouched; routing then
+        // goes through AppModel.openDocument like every other entry point.
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleOpenDocumentsEvent(_:withReply:)),
+            forEventClass: AEEventClass(kCoreEventClass),
+            andEventID: AEEventID(kAEOpenDocuments)
+        )
+    }
+
+    @objc private func handleOpenDocumentsEvent(
+        _ event: NSAppleEventDescriptor,
+        withReply reply: NSAppleEventDescriptor
+    ) {
+        guard let list = event.paramDescriptor(forKeyword: keyDirectObject) else { return }
+        var urls: [URL] = []
+        let count = list.numberOfItems
+        if count > 0 {
+            for index in 1...count {
+                if let url = list.atIndex(index)?.fileURLValue {
+                    urls.append(url)
+                }
+            }
+        } else if let url = list.fileURLValue {
+            // Single-document odoc events can carry the descriptor directly
+            // rather than as a one-element list.
+            urls.append(url)
+        }
+        DebugLog.write("[appdelegate] AE odoc \(urls.count) URLs")
+        openDocuments(at: urls)
+    }
+
+    /// Kept as a fallback for entry points that bypass the Apple event
+    /// (e.g. direct NSWorkspace API calls).  With the odoc handler above
+    /// claimed, AppKit/SwiftUI never invoke this for normal file opens.
     func application(_ application: NSApplication, open urls: [URL]) {
         DebugLog.write("[appdelegate] open \(urls.count) URLs")
         openDocuments(at: urls)
