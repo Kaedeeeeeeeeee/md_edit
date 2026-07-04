@@ -19,7 +19,7 @@ import AppKit
 /// the main window.
 @MainActor
 @Observable
-final class DocumentStore {
+final class AppModel {
     let workspace = WorkspaceSession()
     let document = DocumentSession()
     let sidebar = SidebarState()

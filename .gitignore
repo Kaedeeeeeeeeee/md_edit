@@ -23,3 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 .claude/worktrees/
+
+# Code-signing material — private keys/certs must NEVER be committed
+.testflight/
+
+# Marketing screenshot workbench (local only)
+store-shots/

@@ -2,7 +2,7 @@ import SwiftUI
 import WebKit
 
 struct EditorWebView: NSViewRepresentable {
-    @Environment(DocumentStore.self) private var store
+    @Environment(AppModel.self) private var store
     @Environment(AgentChatController.self) private var agentChat
 
     func makeCoordinator() -> Coordinator {
@@ -70,7 +70,7 @@ struct EditorWebView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         weak var webView: WKWebView?
-        weak var store: DocumentStore?
+        weak var store: AppModel?
         /// WKWebViewConfiguration does NOT retain its scheme handlers, so we
         /// keep one alive here for the lifetime of the coordinator.
         var schemeHandler: EditorSchemeHandler?
@@ -273,7 +273,7 @@ struct EditorWebView: NSViewRepresentable {
             )
         }
 
-        private func writeImage(data: Data, ext: String, in scope: URL, requestId: String, store: DocumentStore) {
+        private func writeImage(data: Data, ext: String, in scope: URL, requestId: String, store: AppModel) {
             do {
                 let relativePath = try store.workspace.saveImageToAttachments(data: data, ext: ext, in: scope)
                 resolveUpload(requestId: requestId, url: relativePath)

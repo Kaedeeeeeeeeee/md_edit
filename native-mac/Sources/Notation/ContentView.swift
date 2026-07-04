@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
-    @Environment(DocumentStore.self) private var store
+    @Environment(AppModel.self) private var store
     @Environment(AgentChatController.self) private var agentChat
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var didSetInitialVisibility = false

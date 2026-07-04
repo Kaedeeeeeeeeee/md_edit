@@ -13,14 +13,14 @@ import SwiftUI
 /// `application(_:open:)` is called by AppKit *every* time the user opens
 /// a file with us (cold launch, double-click while running, drag onto
 /// dock icon, command-line `open foo.md`).  We capture the URL, push it
-/// through the shared `DocumentStore`, and force the main window back on
+/// through the shared `AppModel`, and force the main window back on
 /// screen via direct AppKit (`makeKeyAndOrderFront`).  SwiftUI's
 /// `openWindow(id:)` is unreliable against an `orderOut`'d ghost window.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Latched from the App scene at startup so `application(_:open:)` can
     /// reach the document store without going through SwiftUI environment.
-    weak var store: DocumentStore?
+    weak var store: AppModel?
 
     /// Direct NSWindow ref registered by the main scene's `WindowAccessor`
     /// when SwiftUI first instantiates the underlying `NSWindow`.  Used for
@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Called from the App scene after `@State store` is constructed.
-    func attach(store: DocumentStore) {
+    func attach(store: AppModel) {
         self.store = store
         if !pendingURLs.isEmpty {
             let drained = pendingURLs
@@ -103,7 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func deliverURL(_ url: URL, to store: DocumentStore) {
+    private func deliverURL(_ url: URL, to store: AppModel) {
         let needsScope = url.startAccessingSecurityScopedResource()
         defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
         store.document.loadFile(url)
@@ -116,8 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `Window` scene's `.handlesExternalEvents(matching: ["*"])`
     /// declaration causes it to materialise on its own with the full
     /// `.environment()` chain (AgentChatController, PaywallStore,
-    /// EntitlementState, DocumentStore).  An AppKit-constructed window
-    /// via `NSHostingView` would only have DocumentStore, and ContentView
+    /// EntitlementState, AppModel).  An AppKit-constructed window
+    /// via `NSHostingView` would only have AppModel, and ContentView
     /// would crash reading the other environment values it needs.
     private func presentMainWindow() {
         NSApp.activate(ignoringOtherApps: true)

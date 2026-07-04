@@ -15,7 +15,7 @@ extension Notification.Name {
 @main
 struct NotationApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var store: DocumentStore
+    @State private var store: AppModel
     @State private var closeGuard: CloseGuard?
     @State private var didAttachDelegate = false
     @State private var recentURLs: [URL] = RecentFiles.shared.urls
@@ -37,7 +37,7 @@ struct NotationApp: App {
     @State private var entitlement: EntitlementState = EntitlementState.shared
 
     init() {
-        let store = DocumentStore()
+        let store = AppModel()
         _store = State(initialValue: store)
         let bridge = EditorJSBridge()
         _editorBridge = State(initialValue: bridge)
@@ -276,13 +276,13 @@ struct NotationApp: App {
     }
 }
 
-/// Hands the shared `DocumentStore` to `AppDelegate` so file-open events
+/// Hands the shared `AppModel` to `AppDelegate` so file-open events
 /// arriving via AppKit (when the SwiftUI scene's NSWindow has been
 /// `orderOut`'d) can find their way home.  Also opens the main window if
 /// AppDelegate posts `openMainRequested` from a cold-launch URL routing
 /// path that needs SwiftUI rather than AppKit to construct the window.
 private struct AppDelegateAttacher: ViewModifier {
-    let store: DocumentStore
+    let store: AppModel
     @Binding var didAttach: Bool
     @Environment(\.openWindow) private var openWindow
 
@@ -304,16 +304,16 @@ private struct AppDelegateAttacher: ViewModifier {
 
 /// Routes a file URL delivered to the scene (from Finder "Open With", a
 /// double-click on a `.md`, or a drop on the dock icon) into the shared
-/// `DocumentStore` via AppDelegate so security-scoped access and main-
+/// `AppModel` via AppDelegate so security-scoped access and main-
 /// window presentation are handled uniformly across cold-launch and warm
 /// paths.
 ///
 /// `store` is injected explicitly rather than read from `@Environment`
 /// because this modifier is applied *outside* the `.environment(store)`
-/// call on the scene's root view — an `@Environment(DocumentStore.self)`
+/// call on the scene's root view — an `@Environment(AppModel.self)`
 /// here would trap during view setup because the value isn't in scope yet.
 private struct OpenURLForwarder: ViewModifier {
-    let store: DocumentStore
+    let store: AppModel
     @Environment(\.openWindow) private var openWindow
 
     func body(content: Content) -> some View {

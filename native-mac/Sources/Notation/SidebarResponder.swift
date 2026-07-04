@@ -37,7 +37,7 @@ extension EnvironmentValues {
 /// `NSApp.sendAction`) route to file operations — and route to the editor's
 /// WKWebView when it's focused instead.
 final class SidebarResponderView: NSView {
-    weak var store: DocumentStore?
+    weak var store: AppModel?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -64,7 +64,7 @@ final class SidebarResponderView: NSView {
 }
 
 struct SidebarResponder: NSViewRepresentable {
-    let store: DocumentStore
+    let store: AppModel
     let handle: SidebarResponderHandle
 
     func makeNSView(context: Context) -> SidebarResponderView {

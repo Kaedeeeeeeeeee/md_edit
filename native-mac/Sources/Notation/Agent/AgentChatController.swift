@@ -102,7 +102,7 @@ final class AgentChatController {
     /// Re-hydrates the conversation for a freshly-opened document. Cancels any
     /// in-flight stream, flushes any pending persist task, then loads the
     /// per-document chat history from `AgentChatStore`. Called by ContentView
-    /// when `DocumentStore.currentFileURL` changes.
+    /// when `AppModel.currentFileURL` changes.
     func bind(to documentURL: URL?) {
         if documentURL == currentDocumentURL { return }
         abort()

@@ -6,9 +6,9 @@ import CoreServices
 /// Coalesces bursts via a small debounce so we don't thrash the UI when an
 /// editor saves many files at once.
 ///
-/// Lifecycle: owned by `DocumentStore`. Although the current store is
+/// Lifecycle: owned by `WorkspaceSession`. Although the current owner is
 /// app-lifetime, deinit cleans up the FSEventStream anyway so future
-/// multi-store / multi-window code can't UAF the unretained `info`
+/// multi-session / multi-window code can't UAF the unretained `info`
 /// pointer passed to the C callback.
 @MainActor
 final class FolderWatcher {

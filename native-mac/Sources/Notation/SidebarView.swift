@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SidebarView: View {
-    @Environment(DocumentStore.self) private var store
+    @Environment(AppModel.self) private var store
     @State private var didAutoExpand = false
     @State private var recents: [(url: URL, displayName: String)] = WorkspaceBookmark.recentWorkspaces()
 
@@ -112,7 +112,7 @@ struct SidebarView: View {
 // MARK: - Workspace header
 
 private struct WorkspaceHeader: View {
-    @Environment(DocumentStore.self) private var store
+    @Environment(AppModel.self) private var store
     @Binding var recents: [(url: URL, displayName: String)]
     @State private var hovering = false
 
@@ -209,7 +209,7 @@ private struct WorkspaceHeader: View {
 /// file-tree affordance and frees the title bar for document-level
 /// actions only (Save).
 private struct SidebarFooter: View {
-    @Environment(DocumentStore.self) private var store
+    @Environment(AppModel.self) private var store
     let itemCount: Int
 
     var body: some View {
@@ -280,7 +280,7 @@ private struct SidebarFooter: View {
 // MARK: - Recursive node row
 
 private struct NodeRow: View {
-    @Environment(DocumentStore.self) private var store
+    @Environment(AppModel.self) private var store
     @Environment(\.sidebarResponderHandle) private var responderHandle
     let node: FileNode
     let depth: Int
@@ -602,7 +602,7 @@ private struct NodeRow: View {
 /// NodeRow's modifier chain readable.
 private struct FolderDropDestination: ViewModifier {
     let node: FileNode
-    let store: DocumentStore
+    let store: AppModel
     @Binding var dropTargeted: Bool
     let onDropStart: () -> Void
 
@@ -626,7 +626,7 @@ private struct FolderDropDestination: ViewModifier {
 // MARK: - Empty state
 
 private struct EmptySidebar: View {
-    @Environment(DocumentStore.self) private var store
+    @Environment(AppModel.self) private var store
 
     var body: some View {
         VStack(spacing: 14) {

@@ -12,7 +12,7 @@ import AppKit
 /// Migrating from container to iCloud / Documents / custom location is
 /// available later via Settings.
 struct OnboardingView: View {
-    @Environment(DocumentStore.self) private var store
+    @Environment(AppModel.self) private var store
     @State private var iCloudState: ICloudState = .checking
     @State private var lastError: String?
     @State private var isProcessing: Bool = false
