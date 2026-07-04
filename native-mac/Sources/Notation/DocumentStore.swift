@@ -15,25 +15,14 @@ struct FileNode: Identifiable, Hashable {
 @Observable
 final class DocumentStore {
     var folderURL: URL?
-    var currentFileURL: URL?
-    var currentMarkdown: String = ""
-    var isDirty: Bool = false
     var fileTree: [FileNode] = []
 
-    /// Monotonically increments every time we want the editor to re-pull
-    /// content from the store (file open, new document, current file deleted).
-    /// Editor-originated edits do NOT bump this — that would loop back.
-    /// EditorWebView observes this and pushes `currentMarkdown` into JS when
-    /// it changes.
-    var loadEpoch: Int = 0
-
-    /// True when the open document references a local image but lives in a
-    /// folder Notation hasn't been granted read access to — i.e. a single
-    /// file opened from outside the workspace, before any folder
-    /// authorisation.  Drives the non-blocking "Allow Access" banner in
-    /// ContentView.  Computed once per `loadFile` (never as a hot property —
-    /// the readability probe touches security-scoped bookmarks).
-    var localImageAuthNeeded: Bool = false
+    /// The document open in the main window's editor.  Content, dirty
+    /// tracking, autosave, encoding and the image-auth banner all live
+    /// there — see `DocumentSession`.  The store injects its workspace
+    /// hooks in `init` and coordinates cross-cutting flows (file ops that
+    /// touch the open document, click-to-open).
+    let document = DocumentSession()
 
     // MARK: - Sidebar UI state
     //
@@ -43,20 +32,8 @@ final class DocumentStore {
     // File operations below keep it consistent via translate/remove.
     let sidebar = SidebarState()
 
-    private var autoSaveTask: Task<Void, Never>?
     private let folderWatcher = FolderWatcher()
     private var folderWatcherWired = false
-
-    /// Once auto-save has chosen a filename for an untitled document, reuse it
-    /// for subsequent autosaves in the same session.  Cleared on
-    /// `newDocument()` / `loadFile()`.  Without this, rapid edits after the
-    /// timestamp tick boundary spawn multiple `Untitled-…` files.
-    private var untitledAutosaveName: String?
-
-    /// Encoding detected when we last `loadFile`d.  Preserved on save so
-    /// opening a UTF-16 / GB18030 file and saving it doesn't silently
-    /// transcode the user's bytes to UTF-8.
-    private var currentFileEncoding: String.Encoding = .utf8
 
     /// The workspace folder we currently hold a started security-scoped
     /// resource handle on.  Tracked separately from `folderURL` so we can
@@ -64,15 +41,6 @@ final class DocumentStore {
     /// adopting a new one.  Without this, every workspace switch leaks the
     /// previous workspace's kernel handle for the lifetime of the process.
     private var workspaceAccessURL: URL?
-
-    /// Suppress `handleEditorChange` while we're pushing a freshly-loaded
-    /// document into the editor.  BlockNote re-emits an onChange post-
-    /// `replaceBlocks` with its own normalised markdown (trailing newlines,
-    /// whitespace), which without this flag would mark the doc dirty the
-    /// instant it loads and silently trigger autosave to a normalised form
-    /// that rewrites the user's file or spawns a phantom Untitled.
-    @ObservationIgnored private var isPriming: Bool = false
-    @ObservationIgnored private var primingTask: Task<Void, Never>?
 
     /// Ignore `FolderWatcher` callbacks until this date.  Bumped to
     /// `now + 0.4s` after any internal mutation (move/copy/rename/delete)
@@ -97,122 +65,19 @@ final class DocumentStore {
         // flag in UserDefaults so we only do it once.
         DefaultMarkdownHandler.claimAsDefaultIfNeeded()
 
+        // Wire the document session's workspace hooks.  Weak self: the
+        // session is owned by this store, so a strong capture would cycle.
+        document.workspaceRoot = { [weak self] in self?.folderURL }
+        document.onFileWritten = { [weak self] _ in
+            guard let self, self.folderURL != nil else { return }
+            self.rebuildFileTree()
+        }
+
         // Restore the previously-adopted workspace synchronously during init
         // so ContentView's first render sees the final `folderURL` value.
         // Without this, the onboarding gate flashes for a frame on every
         // launch even for returning users.
         restoreSavedWorkspaceIfAvailable()
-    }
-
-    // Called by JS bridge whenever editor content changes.
-    func handleEditorChange(_ markdown: String) {
-        if isPriming {
-            // Editor's first onChange after replaceBlocks is BlockNote's own
-            // normalisation, not user input.  Track the markdown so dirty
-            // detection has the right baseline, but don't flip dirty.
-            currentMarkdown = markdown
-            return
-        }
-        currentMarkdown = markdown
-        isDirty = true
-        scheduleAutoSave()
-    }
-
-    /// Cancel any pending auto-save task.  Required before:
-    ///   - Discarding dirty changes (CloseGuard "Don't Save")
-    ///   - Loading a different document
-    ///   - Creating a new document
-    /// Without this, a task scheduled before the user discarded their work
-    /// fires after `currentFileURL` and `currentMarkdown` have been swapped,
-    /// either zombie-writing discarded content or stomping on freshly-loaded
-    /// content with stale data.
-    func cancelPendingAutoSave() {
-        autoSaveTask?.cancel()
-        autoSaveTask = nil
-    }
-
-    /// Open a 1-second window during which `handleEditorChange` only updates
-    /// the cached markdown and does not flip dirty / schedule autosave.
-    /// Callers (newDocument, loadFile) invoke this immediately before
-    /// triggering an editor re-render so BlockNote's normalisation echo
-    /// doesn't masquerade as user input.
-    private func beginPriming() {
-        isPriming = true
-        primingTask?.cancel()
-        primingTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            guard !Task.isCancelled, let self else { return }
-            self.isPriming = false
-        }
-    }
-
-    private func scheduleAutoSave() {
-        autoSaveTask?.cancel()
-        let defaults = UserDefaults.standard
-        let enabled = defaults.bool(forKey: "autoSaveEnabled")
-        guard enabled, !currentMarkdown.isEmpty else { return }
-        let delay = defaults.double(forKey: "autoSaveDelaySeconds")
-        let seconds = delay > 0 ? delay : 2.0
-        autoSaveTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            guard !Task.isCancelled, let self else { return }
-            guard self.isDirty, !self.currentMarkdown.isEmpty else { return }
-            if self.currentFileURL != nil {
-                self.save()
-            } else if self.folderURL != nil {
-                self.autosaveAsUntitled()
-            }
-            // If both are nil (no vault, no file), nothing we can do safely.
-            // After phase-2 onboarding `folderURL` always exists, so this
-            // branch is effectively unreachable.
-        }
-    }
-
-    /// Persist an untitled document into the active workspace using a
-    /// timestamped filename, then promote it to `currentFileURL` so
-    /// subsequent saves go through the standard path.
-    private func autosaveAsUntitled() {
-        guard let folder = folderURL else { return }
-        if untitledAutosaveName == nil {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
-            untitledAutosaveName = "Untitled-\(formatter.string(from: Date())).md"
-        }
-        guard let name = untitledAutosaveName else { return }
-        let target = uniqueURL(in: folder, name: name)
-        do {
-            try currentMarkdown.write(to: target, atomically: true, encoding: .utf8)
-            currentFileURL = target
-            isDirty = false
-            RecentFiles.shared.push(target)
-            rebuildFileTree()
-            DebugLog.write("[autosave] created untitled \(target.lastPathComponent)")
-        } catch {
-            DebugLog.write("[autosave] untitled write failed: \(error.localizedDescription)")
-        }
-    }
-
-    func newDocument() {
-        guard confirmDiscardIfDirty() else { return }
-        cancelPendingAutoSave()
-        untitledAutosaveName = nil
-        beginPriming()
-        currentFileURL = nil
-        currentMarkdown = ""
-        localImageAuthNeeded = false
-        isDirty = false
-        loadEpoch += 1
-    }
-
-    func openFileDialog() {
-        guard confirmDiscardIfDirty() else { return }
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = markdownTypes()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        if panel.runModal() == .OK, let url = panel.url {
-            loadFile(url)
-        }
     }
 
     func openFolderDialog() {
@@ -291,91 +156,6 @@ final class DocumentStore {
         }
     }
 
-    func loadFile(_ url: URL) {
-        do {
-            // Size guard — refuse files >20 MB so a stray log file can't pin
-            // the main thread on String(contentsOf:) or OOM the WKWebView
-            // when we splice the doc into evaluateJavaScript.
-            let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
-            if let size = resourceValues.fileSize, size > 20 * 1024 * 1024 {
-                let sizeStr = ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
-                presentAlert(
-                    String(localized: "File too large"),
-                    String(format: String(localized: "Notation can open Markdown files up to 20 MB. This file is %@."), sizeStr)
-                )
-                return
-            }
-            // Auto-detect encoding — handles UTF-8 BOM, UTF-16 BE/LE BOM,
-            // system default fallback. Remember the encoding so
-            // writeMarkdown(to:) doesn't silently transcode UTF-16 → UTF-8
-            // on save.
-            var detected: String.Encoding = .utf8
-            let content = try String(contentsOf: url, usedEncoding: &detected)
-            currentFileEncoding = detected
-            cancelPendingAutoSave()
-            untitledAutosaveName = nil
-            beginPriming()
-            currentFileURL = url
-            currentMarkdown = content
-            localImageAuthNeeded = computeLocalImageAuthNeeded(for: url, markdown: content)
-            isDirty = false
-            loadEpoch += 1
-            RecentFiles.shared.push(url)
-        } catch {
-            DebugLog.write("[loadFile] FAILED \(error.localizedDescription)")
-            presentAlert(String(localized: "Failed to open file"), error.localizedDescription)
-        }
-    }
-
-    func save() {
-        if let url = currentFileURL {
-            writeMarkdown(to: url)
-        } else {
-            saveAs()
-        }
-    }
-
-    func saveAs() {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
-        panel.nameFieldStringValue = currentFileURL?.lastPathComponent ?? "Untitled.md"
-        if panel.runModal() == .OK, let url = panel.url {
-            writeMarkdown(to: url)
-            currentFileURL = url
-            untitledAutosaveName = nil // committed to an explicit filename
-        }
-    }
-
-    private func writeMarkdown(to url: URL) {
-        do {
-            try currentMarkdown.write(to: url, atomically: true, encoding: currentFileEncoding)
-            isDirty = false
-            RecentFiles.shared.push(url)
-            if folderURL != nil { rebuildFileTree() }
-        } catch {
-            presentAlert(String(localized: "Failed to save"), error.localizedDescription)
-        }
-    }
-
-    private func confirmDiscardIfDirty() -> Bool {
-        guard isDirty else { return true }
-        let alert = NSAlert()
-        alert.messageText = String(localized: "You have unsaved changes.")
-        alert.informativeText = String(localized: "Discard them and continue?")
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: String(localized: "Discard"))
-        alert.addButton(withTitle: String(localized: "Cancel"))
-        return alert.runModal() == .alertFirstButtonReturn
-    }
-
-    private func presentAlert(_ title: String, _ message: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.runModal()
-    }
-
     // MARK: - File tree mutations
 
     /// Create a new empty .md file inside `parent` (use folderURL if nil).
@@ -384,20 +164,20 @@ final class DocumentStore {
     func createNewFile(in parent: URL? = nil) -> URL? {
         let dir = parent ?? folderURL
         guard let dir else { return nil }
-        guard let name = promptForName(
+        guard let name = AppAlerts.promptForName(
             title: String(localized: "New File"),
             placeholder: "Untitled.md",
             defaultValue: "Untitled.md"
         ), !name.isEmpty else { return nil }
         let finalName = name.hasSuffix(".md") ? name : "\(name).md"
-        let url = uniqueURL(in: dir, name: finalName)
+        let url = FilePaths.uniqueURL(in: dir, name: finalName)
         do {
             try "".write(to: url, atomically: true, encoding: .utf8)
             rebuildFileTree()
-            loadFile(url)
+            document.loadFile(url)
             return url
         } catch {
-            presentAlert(String(localized: "Failed to create file"), error.localizedDescription)
+            AppAlerts.present(String(localized: "Failed to create file"), error.localizedDescription)
             return nil
         }
     }
@@ -406,18 +186,18 @@ final class DocumentStore {
     func createNewFolder(in parent: URL? = nil) -> URL? {
         let dir = parent ?? folderURL
         guard let dir else { return nil }
-        guard let name = promptForName(
+        guard let name = AppAlerts.promptForName(
             title: String(localized: "New Folder"),
             placeholder: "Untitled Folder",
             defaultValue: "Untitled Folder"
         ), !name.isEmpty else { return nil }
-        let url = uniqueURL(in: dir, name: name)
+        let url = FilePaths.uniqueURL(in: dir, name: name)
         do {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
             rebuildFileTree()
             return url
         } catch {
-            presentAlert(String(localized: "Failed to create folder"), error.localizedDescription)
+            AppAlerts.present(String(localized: "Failed to create folder"), error.localizedDescription)
             return nil
         }
     }
@@ -426,7 +206,7 @@ final class DocumentStore {
     /// item continues to work without inline editing focus.  Forwards to
     /// the headless `rename(_:to:)`.
     func rename(_ url: URL) {
-        guard let newName = promptForName(
+        guard let newName = AppAlerts.promptForName(
             title: String(localized: "Rename"),
             placeholder: url.lastPathComponent,
             defaultValue: url.lastPathComponent
@@ -448,7 +228,7 @@ final class DocumentStore {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         guard !trimmed.contains("/"), !trimmed.contains(":") else {
-            presentAlert(
+            AppAlerts.present(
                 String(localized: "Invalid name"),
                 String(localized: "Names cannot contain “/” or “:”.")
             )
@@ -458,7 +238,7 @@ final class DocumentStore {
 
         // Decide the final filename, taking collisions into account.
         let parent = url.deletingLastPathComponent()
-        let collisionFree = uniqueURL(in: parent, name: trimmed)
+        let collisionFree = FilePaths.uniqueURL(in: parent, name: trimmed)
         let dest = collisionFree
 
         beginInternalMutation()
@@ -469,7 +249,7 @@ final class DocumentStore {
             DebugLog.write("[fileop] rename \(url.lastPathComponent) -> \(dest.lastPathComponent)")
             return dest
         } catch {
-            presentAlert(String(localized: "Failed to rename"), error.localizedDescription)
+            AppAlerts.present(String(localized: "Failed to rename"), error.localizedDescription)
             return nil
         }
     }
@@ -477,9 +257,7 @@ final class DocumentStore {
     /// Update every URL-keyed piece of state when a path on disk moves
     /// from `old` to `new`.  Called by rename/move/paste.
     private func translateURL(from old: URL, to new: URL) {
-        if currentFileURL?.standardizedFileURL == old.standardizedFileURL {
-            currentFileURL = new
-        }
+        document.noteFileMoved(from: old, to: new)
         sidebar.translate(from: old, to: new)
     }
 
@@ -516,25 +294,18 @@ final class DocumentStore {
         for url in standardised {
             do {
                 try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-                if currentFileURL?.standardizedFileURL == url {
+                if document.currentFileURL?.standardizedFileURL == url {
                     trashedOpenDoc = true
                 }
                 sidebar.remove(url)
                 DebugLog.write("[fileop] trashed \(url.lastPathComponent)")
             } catch {
                 DebugLog.write("[fileop] trash FAILED \(url.lastPathComponent): \(error.localizedDescription)")
-                presentAlert(String(localized: "Failed to move to Trash"), error.localizedDescription)
+                AppAlerts.present(String(localized: "Failed to move to Trash"), error.localizedDescription)
             }
         }
         if trashedOpenDoc {
-            cancelPendingAutoSave()
-            untitledAutosaveName = nil
-            beginPriming()
-            currentFileURL = nil
-            currentMarkdown = ""
-            localImageAuthNeeded = false
-            isDirty = false
-            loadEpoch += 1
+            document.reset()
         }
         rebuildFileTree()
     }
@@ -559,7 +330,7 @@ final class DocumentStore {
         // Reject "drop into self / descendant" up front for any source.
         for src in urls {
             let srcStd = src.standardizedFileURL
-            if Self.contains(parent: srcStd, child: destStd) {
+            if FilePaths.contains(parent: srcStd, child: destStd) {
                 NSSound.beep()
                 DebugLog.write("[fileop] move refused (cycle): \(srcStd.lastPathComponent) → \(destStd.path)")
                 return []
@@ -569,7 +340,7 @@ final class DocumentStore {
         beginInternalMutation()
         var newURLs: [URL] = []
         for src in urls {
-            let dest = uniqueURL(in: destination, name: src.lastPathComponent)
+            let dest = FilePaths.uniqueURL(in: destination, name: src.lastPathComponent)
             do {
                 try FileManager.default.moveItem(at: src, to: dest)
                 translateURL(from: src, to: dest)
@@ -577,7 +348,7 @@ final class DocumentStore {
                 DebugLog.write("[fileop] move \(src.lastPathComponent) → \(dest.path)")
             } catch {
                 DebugLog.write("[fileop] move FAILED \(src.lastPathComponent): \(error.localizedDescription)")
-                presentAlert(String(localized: "Failed to move"), error.localizedDescription)
+                AppAlerts.present(String(localized: "Failed to move"), error.localizedDescription)
             }
         }
         rebuildFileTree()
@@ -593,14 +364,14 @@ final class DocumentStore {
         beginInternalMutation()
         var newURLs: [URL] = []
         for src in urls {
-            let dest = uniqueURL(in: destination, name: src.lastPathComponent)
+            let dest = FilePaths.uniqueURL(in: destination, name: src.lastPathComponent)
             do {
                 try FileManager.default.copyItem(at: src, to: dest)
                 newURLs.append(dest)
                 DebugLog.write("[fileop] copy \(src.lastPathComponent) → \(dest.path)")
             } catch {
                 DebugLog.write("[fileop] copy FAILED \(src.lastPathComponent): \(error.localizedDescription)")
-                presentAlert(String(localized: "Failed to copy"), error.localizedDescription)
+                AppAlerts.present(String(localized: "Failed to copy"), error.localizedDescription)
             }
         }
         rebuildFileTree()
@@ -658,8 +429,8 @@ final class DocumentStore {
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
                !isDir.boolValue,
-               currentFileURL?.standardizedFileURL != url.standardizedFileURL {
-                loadFile(url)
+               document.currentFileURL?.standardizedFileURL != url.standardizedFileURL {
+                document.loadFile(url)
             }
         }
     }
@@ -681,7 +452,7 @@ final class DocumentStore {
         return result
     }
 
-    // (Path containment helper `Self.contains(parent:, child:)` is defined
+    // (Path containment helper `FilePaths.contains(parent:, child:)` is defined
     // further down in the "Filesystem helpers" section — reuse that one.)
 
     func revealInFinder(_ url: URL) {
@@ -714,148 +485,11 @@ final class DocumentStore {
         return "attachments/\(filename)"
     }
 
-    /// Resolve where pasted-image bytes for `fileURL` should be stored.
-    /// Returns a security-scoped URL the caller can read/write inside.
-    ///
-    /// Priority:
-    /// 1. File inside the active workspace → workspace root.
-    /// 2. File outside any workspace, but its parent dir has an existing
-    ///    grant → that grant.
-    /// 3. Untitled (nil fileURL) and a workspace exists → workspace root.
-    /// 4. No workspace, no grant → nil (caller must prompt or reject).
-    func imageScope(for fileURL: URL?) -> URL? {
-        if let fileURL, let folder = folderURL,
-           Self.contains(parent: folder, child: fileURL) {
-            return folder
-        }
-        if let fileURL {
-            return DocumentDirBookmarks.grant(for: fileURL)
-        }
-        return folderURL
-    }
-
-    // MARK: - Local image folder access
-
-    /// Prompt for read access to the open document's folder, then re-pull the
-    /// document so its now-readable local images render.  Invoked by the
-    /// "Allow Access" banner.  No-op without a current file or if the user
-    /// cancels the folder picker.
-    func authorizeCurrentDocumentFolder() {
-        guard let fileURL = currentFileURL else { return }
-        let granted = DocumentDirBookmarks.requestGrant(
-            for: fileURL,
-            message: String(
-                format: String(localized: "Allow Notation to read the folder containing “%@” so this document’s local images can be displayed."),
-                fileURL.lastPathComponent
-            ),
-            prompt: String(localized: "Allow Access")
-        )
-        guard granted != nil else { return }
-        localImageAuthNeeded = false
-        // Re-pull: EditorWebView.updateNSView refreshes the scheme handler's
-        // grants (picking up the new bookmark) before re-sending the markdown,
-        // so the images resolve on re-render.  Prime so BlockNote's
-        // post-replaceBlocks onChange echo doesn't masquerade as a user edit.
-        beginPriming()
-        loadEpoch += 1
-    }
-
-    /// Decide whether to surface the local-image access banner for a freshly
-    /// loaded document.  Cheap checks first (workspace containment, then a
-    /// non-starting bookmark peek); only scan the markdown for a local image
-    /// reference when the folder isn't already readable.
-    private func computeLocalImageAuthNeeded(for fileURL: URL, markdown: String) -> Bool {
-        if let folder = folderURL, Self.contains(parent: folder, child: fileURL) { return false }
-        if DocumentDirBookmarks.hasGrant(for: fileURL) { return false }
-        return Self.markdownReferencesLocalImage(markdown)
-    }
-
-    /// True if `markdown` contains an image whose target is a local path
-    /// (relative or absolute) rather than a remote / `data:` / in-app URL.
-    /// Only used to decide whether the access banner is worth showing, so a
-    /// permissive match is fine.
-    static func markdownReferencesLocalImage(_ markdown: String) -> Bool {
-        let patterns = [
-            #"!\[[^\]]*\]\(\s*([^)\s]+)"#,                 // ![alt](path "title")
-            #"<img[^>]*\bsrc\s*=\s*["']([^"']+)["']"#      // <img src="path">
-        ]
-        let ns = markdown as NSString
-        let full = NSRange(location: 0, length: ns.length)
-        for pattern in patterns {
-            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
-            for m in re.matches(in: markdown, range: full) where m.numberOfRanges > 1 {
-                let ref = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
-                if isLocalImageReference(ref) { return true }
-            }
-        }
-        return false
-    }
-
-    private static func isLocalImageReference(_ ref: String) -> Bool {
-        guard !ref.isEmpty else { return false }
-        let lower = ref.lowercased()
-        if lower.hasPrefix("http://") || lower.hasPrefix("https://") { return false }
-        if lower.hasPrefix("data:") { return false }
-        if lower.hasPrefix("marktext-editor:") { return false }
-        return true
-    }
-
-    /// Equivalent path-containment check used by `imageScope` and
-    /// `DocumentDirBookmarks`.  Standardises paths first so `~/Foo/../Bar`
-    /// reduces correctly, and gates on the trailing-slash boundary so
-    /// `/Foo` doesn't match `/FooBar/x`.
-    static func contains(parent: URL, child: URL) -> Bool {
-        let parentPath = parent.standardizedFileURL.path
-        let childPath = child.standardizedFileURL.path
-        if parentPath == childPath { return true }
-        let needle = parentPath.hasSuffix("/") ? parentPath : parentPath + "/"
-        return childPath.hasPrefix(needle)
-    }
-
     private func sanitizedExtension(_ ext: String) -> String {
         let trimmed = ext.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let allowed = trimmed.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) }
         if !trimmed.isEmpty, allowed, trimmed.count <= 6 { return trimmed }
         return "png"
-    }
-
-    // MARK: - Filesystem helpers
-
-    /// Collision-avoiding URL: returns `dir/name` if free, else appends
-    /// `" 2"`, `" 3"`, ... preserving the extension.  Internal so the
-    /// move/copy/paste paths can reuse it without duplicating logic.
-    func uniqueURL(in dir: URL, name: String) -> URL {
-        let base = dir.appendingPathComponent(name)
-        if !FileManager.default.fileExists(atPath: base.path) { return base }
-        let stem = (name as NSString).deletingPathExtension
-        let ext = (name as NSString).pathExtension
-        for i in 2...999 {
-            let candidate = dir.appendingPathComponent(
-                ext.isEmpty ? "\(stem) \(i)" : "\(stem) \(i).\(ext)"
-            )
-            if !FileManager.default.fileExists(atPath: candidate.path) { return candidate }
-        }
-        return base
-    }
-
-    private func promptForName(title: String, placeholder: String, defaultValue: String) -> String? {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: String(localized: "OK"))
-        alert.addButton(withTitle: String(localized: "Cancel"))
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        field.placeholderString = placeholder
-        field.stringValue = defaultValue
-        // Select stem so ".md" extension survives unless user replaces all.
-        if let editor = field.currentEditor() as? NSTextView {
-            editor.selectAll(nil)
-        }
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else { return nil }
-        return field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - File tree
@@ -894,7 +528,7 @@ final class DocumentStore {
                     isDirectory: true,
                     children: children
                 ))
-            } else if isMarkdown(entry) {
+            } else if FilePaths.isMarkdown(entry) {
                 nodes.append(FileNode(
                     url: entry,
                     name: entry.lastPathComponent,
@@ -912,15 +546,4 @@ final class DocumentStore {
         return nodes
     }
 
-    private func isMarkdown(_ url: URL) -> Bool {
-        let ext = url.pathExtension.lowercased()
-        return ["md", "markdown", "mdown", "mkd"].contains(ext)
-    }
-
-    private func markdownTypes() -> [UTType] {
-        var types: [UTType] = [.plainText]
-        if let md = UTType(filenameExtension: "md") { types.append(md) }
-        if let mk = UTType(filenameExtension: "markdown") { types.append(mk) }
-        return types
-    }
 }

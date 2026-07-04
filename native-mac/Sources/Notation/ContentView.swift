@@ -29,12 +29,12 @@ struct ContentView: View {
                     TitleBarScrollEdge()
                 }
                 .overlay(alignment: .top) {
-                    if store.localImageAuthNeeded {
+                    if store.document.localImageAuthNeeded {
                         LocalImageAccessBanner(
-                            onAllow: { store.authorizeCurrentDocumentFolder() },
+                            onAllow: { store.document.authorizeCurrentDocumentFolder() },
                             onDismiss: {
                                 withAnimation(.easeOut(duration: 0.18)) {
-                                    store.localImageAuthNeeded = false
+                                    store.document.localImageAuthNeeded = false
                                 }
                             }
                         )
@@ -43,7 +43,7 @@ struct ContentView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                .animation(.easeOut(duration: 0.2), value: store.localImageAuthNeeded)
+                .animation(.easeOut(duration: 0.2), value: store.document.localImageAuthNeeded)
                 .overlay(alignment: .bottomTrailing) {
                     AgentOverlay()
                 }
@@ -52,19 +52,19 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
-                            store.save()
+                            store.document.save()
                         } label: {
                             Label("Save", systemImage: "arrow.down.document")
                         }
                         .keyboardShortcut("s")
-                        .disabled(!store.isDirty && store.currentFileURL != nil)
-                        .help(store.isDirty ? Text("Save (⌘S)") : Text("No unsaved changes"))
+                        .disabled(!store.document.isDirty && store.document.currentFileURL != nil)
+                        .help(store.document.isDirty ? Text("Save (⌘S)") : Text("No unsaved changes"))
                     }
                 }
         }
         .navigationSplitViewStyle(.balanced)
         .onAppear {
-            syncDocumentEditedDot(store.isDirty)
+            syncDocumentEditedDot(store.document.isDirty)
             // On first appearance, hide the sidebar if we opened straight to
             // a single file (Finder "Open With" or `open foo.md`).  When the
             // user is inside a workspace, sidebar stays at its default `.all`.
@@ -74,19 +74,19 @@ struct ContentView: View {
             // currentFileURL would be set with no fileTree entries is if the
             // user opened an external file outside the vault — keep their
             // focus on that file.
-            if let url = store.currentFileURL,
+            if let url = store.document.currentFileURL,
                let folder = store.folderURL,
                !url.path.hasPrefix(folder.path) {
                 columnVisibility = .detailOnly
             }
-            agentChat.bind(to: store.currentFileURL)
+            agentChat.bind(to: store.document.currentFileURL)
         }
-        .onChange(of: store.currentFileURL) { _, newURL in
+        .onChange(of: store.document.currentFileURL) { _, newURL in
             // Re-hydrate the per-document chat history whenever the open
             // document changes (workspace navigation, recent file, etc).
             agentChat.bind(to: newURL)
         }
-        .onChange(of: store.isDirty) { _, dirty in
+        .onChange(of: store.document.isDirty) { _, dirty in
             syncDocumentEditedDot(dirty)
         }
         .onReceive(NotificationCenter.default.publisher(for: .aiAgentToggleRequested)) { _ in
@@ -104,8 +104,8 @@ struct ContentView: View {
     }
 
     private var documentTitle: String {
-        let name = store.currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
-        return store.isDirty ? "● \(name)" : name
+        let name = store.document.currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        return store.document.isDirty ? "● \(name)" : name
     }
 
     private var folderTitle: String {

@@ -49,11 +49,15 @@ struct WindowAccessor: NSViewRepresentable {
 /// `windowShouldClose`, so it still quits the app cleanly.
 @MainActor
 final class CloseGuard: NSObject, NSWindowDelegate {
-    private let store: DocumentStore
+    // Depends on the document session only — CloseGuard's whole job is
+    // "is this document dirty and how do we settle it", which is exactly
+    // the DocumentSession surface.  Phase-2 document windows reuse the
+    // same shape with a variant that really closes instead of orderOut.
+    private let document: DocumentSession
     private weak var window: NSWindow?
 
-    init(store: DocumentStore) {
-        self.store = store
+    init(document: DocumentSession) {
+        self.document = document
     }
 
     func attach(to window: NSWindow) {
@@ -67,7 +71,7 @@ final class CloseGuard: NSObject, NSWindowDelegate {
         // hiding.  Whether they save, discard, or cancel, we hide rather than
         // destroy so re-opening a file later doesn't need to recreate the
         // scene from scratch.
-        if store.isDirty {
+        if document.isDirty {
             let alert = NSAlert()
             alert.messageText = String(localized: "You have unsaved changes.")
             alert.informativeText = String(localized: "Do you want to save before closing?")
@@ -78,8 +82,8 @@ final class CloseGuard: NSObject, NSWindowDelegate {
 
             switch alert.runModal() {
             case .alertFirstButtonReturn: // Save
-                store.save()
-                if store.isDirty {
+                document.save()
+                if document.isDirty {
                     // Save was cancelled (e.g., user dismissed Save As); keep
                     // the window open so they don't lose anything.
                     return false
@@ -92,8 +96,8 @@ final class CloseGuard: NSObject, NSWindowDelegate {
                 // Race fix: if an autosave was scheduled before the user
                 // discarded, fire-after-orderOut would zombie-write the
                 // discarded content.  Kill the pending task first.
-                store.cancelPendingAutoSave()
-                store.isDirty = false
+                document.cancelPendingAutoSave()
+                document.isDirty = false
                 sender.orderOut(nil)
                 return false
             default:

@@ -106,7 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func deliverURL(_ url: URL, to store: DocumentStore) {
         let needsScope = url.startAccessingSecurityScopedResource()
         defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
-        store.loadFile(url)
+        store.document.loadFile(url)
         presentMainWindow()
     }
 

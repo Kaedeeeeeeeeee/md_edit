@@ -480,7 +480,7 @@ private struct NodeRow: View {
     /// moves elsewhere (⌘-click, folder click).
     private var isOpenDocument: Bool {
         !node.isDirectory
-            && store.currentFileURL?.standardizedFileURL == node.url.standardizedFileURL
+            && store.document.currentFileURL?.standardizedFileURL == node.url.standardizedFileURL
     }
 
     private var displayName: String {

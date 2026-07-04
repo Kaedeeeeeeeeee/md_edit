@@ -51,7 +51,7 @@ struct EditorWebView: NSViewRepresentable {
     }
 
     // Pull pattern: SwiftUI re-invokes this whenever any observed property
-    // on `store` changes.  Reading `store.loadEpoch` here registers it as a
+    // on `store` changes.  Reading `store.document.loadEpoch` here registers it as a
     // dependency; the coordinator then compares against the last dispatched
     // epoch and only pushes to JS when a fresh load is required (file open,
     // new document, file delete).  Editor-originated changes don't bump the
@@ -62,8 +62,8 @@ struct EditorWebView: NSViewRepresentable {
         // and immediately fetches an attachments/foo.png reference, the
         // grants must already be in place or we'd flash a broken image.
         context.coordinator.refreshAccessGrants()
-        let epoch = store.loadEpoch
-        let markdown = store.currentMarkdown
+        let epoch = store.document.loadEpoch
+        let markdown = store.document.currentMarkdown
         context.coordinator.syncIfNeeded(epoch: epoch, markdown: markdown)
     }
 
@@ -196,12 +196,12 @@ struct EditorWebView: NSViewRepresentable {
                     // Editor ready but no explicit load has been requested
                     // yet (epoch 0).  Push the initial document anyway so
                     // the editor reflects whatever is in the store.
-                    lastDispatchedEpoch = store.loadEpoch
-                    sendLoad(store.currentMarkdown)
+                    lastDispatchedEpoch = store.document.loadEpoch
+                    sendLoad(store.document.currentMarkdown)
                 }
             case "change":
                 if let markdown = dict["markdown"] as? String {
-                    store?.handleEditorChange(markdown)
+                    store?.document.handleEditorChange(markdown)
                 }
             case "saveImage":
                 guard
@@ -240,7 +240,7 @@ struct EditorWebView: NSViewRepresentable {
 
             // Try to resolve the image scope from already-known sources
             // (active workspace, or a previously-granted parent directory).
-            if let scope = store.imageScope(for: store.currentFileURL) {
+            if let scope = store.document.imageScope(for: store.document.currentFileURL) {
                 writeImage(data: data, ext: ext, in: scope, requestId: requestId, store: store)
                 return
             }
@@ -249,7 +249,7 @@ struct EditorWebView: NSViewRepresentable {
             // user once for parent-dir authorization.  The granted URL is
             // pushed onto scheme handler grants so the new image (and any
             // existing image refs in the same doc) can be read back.
-            if let fileURL = store.currentFileURL {
+            if let fileURL = store.document.currentFileURL {
                 DebugLog.write("[paste] requesting docDir grant for \(fileURL.lastPathComponent)")
                 guard let docDir = DocumentDirBookmarks.requestGrant(for: fileURL) else {
                     rejectUpload(
@@ -294,12 +294,12 @@ struct EditorWebView: NSViewRepresentable {
             }
             // Floating doc?  Look up its parent-dir grant if one already
             // exists (don't prompt — that only happens on user paste).
-            if let fileURL = store.currentFileURL,
+            if let fileURL = store.document.currentFileURL,
                let folder = store.folderURL,
-               !DocumentStore.contains(parent: folder, child: fileURL),
+               !FilePaths.contains(parent: folder, child: fileURL),
                let docDir = DocumentDirBookmarks.grant(for: fileURL) {
                 grants.append(.init(url: docDir, role: .docDir))
-            } else if let fileURL = store.currentFileURL,
+            } else if let fileURL = store.document.currentFileURL,
                       store.folderURL == nil,
                       let docDir = DocumentDirBookmarks.grant(for: fileURL) {
                 grants.append(.init(url: docDir, role: .docDir))
@@ -308,7 +308,7 @@ struct EditorWebView: NSViewRepresentable {
             // Resolution base for the open document's relative image refs.
             // The directory is only *readable* when it's inside one of the
             // grants above; the scheme handler enforces that containment.
-            schemeHandler.documentDirectory = store.currentFileURL?
+            schemeHandler.documentDirectory = store.document.currentFileURL?
                 .deletingLastPathComponent()
                 .standardizedFileURL
         }

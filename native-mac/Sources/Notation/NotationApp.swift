@@ -58,13 +58,13 @@ struct NotationApp: App {
                 .frame(minWidth: 800, minHeight: 520)
                 .background(
                     WindowAccessor { window in
-                        let guardian = closeGuard ?? CloseGuard(store: store)
+                        let guardian = closeGuard ?? CloseGuard(document: store.document)
                         guardian.attach(to: window)
                         closeGuard = guardian
                         (NSApp.delegate as? AppDelegate)?.registerMainWindow(window)
                     }
                 )
-                .onChange(of: store.currentFileURL) { _, _ in
+                .onChange(of: store.document.currentFileURL) { _, _ in
                     recentURLs = RecentFiles.shared.urls
                 }
                 .onChange(of: store.folderURL) { _, _ in
@@ -130,7 +130,7 @@ struct NotationApp: App {
             }
 
             CommandGroup(replacing: .newItem) {
-                Button("New") { store.newDocument() }
+                Button("New") { store.document.newDocument() }
                     .keyboardShortcut("n")
 
                 Divider()
@@ -138,7 +138,7 @@ struct NotationApp: App {
                 Button("Open Folder…") { store.openFolderDialog() }
                     .keyboardShortcut("o")
 
-                Button("Open File…") { store.openFileDialog() }
+                Button("Open File…") { store.document.openFileDialog() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
 
                 Menu("Switch Workspace") {
@@ -171,7 +171,7 @@ struct NotationApp: App {
                     } else {
                         ForEach(recentURLs, id: \.absoluteString) { url in
                             Button(url.lastPathComponent) {
-                                store.loadFile(url)
+                                store.document.loadFile(url)
                             }
                         }
                         Divider()
@@ -184,10 +184,10 @@ struct NotationApp: App {
             }
 
             CommandGroup(replacing: .saveItem) {
-                Button("Save") { store.save() }
+                Button("Save") { store.document.save() }
                     .keyboardShortcut("s")
 
-                Button("Save As…") { store.saveAs() }
+                Button("Save As…") { store.document.saveAs() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
             }
 
@@ -324,7 +324,7 @@ private struct OpenURLForwarder: ViewModifier {
                 // Fallback for preview/test contexts without the AppKit delegate.
                 let needsScope = url.startAccessingSecurityScopedResource()
                 defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
-                store.loadFile(url)
+                store.document.loadFile(url)
                 openWindow(id: "main")
             }
         }
