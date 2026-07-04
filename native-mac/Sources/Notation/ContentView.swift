@@ -63,6 +63,9 @@ struct ContentView: View {
                 }
         }
         .navigationSplitViewStyle(.balanced)
+        // Publish this window's document session for menu-command routing
+        // (⌘S / ⌘⇧S / ⌘N resolve against the key window's session).
+        .focusedSceneValue(\.documentSession, store.document)
         .onAppear {
             syncDocumentEditedDot(store.document.isDirty)
             // On first appearance, hide the sidebar if we opened straight to

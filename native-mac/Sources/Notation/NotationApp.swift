@@ -1,6 +1,21 @@
 import SwiftUI
 import AppKit
 
+/// Focused-window plumbing for menu commands (B2 refactor, phase 1.5).
+///
+/// Each editor window's root view publishes its DocumentSession via
+/// `.focusedSceneValue(\.documentSession, ...)`; document-targeting
+/// commands read `@FocusedValue(\.documentSession)` so ⌘S / ⌘⇧S / ⌘N
+/// act on whichever window is key.  Today there is exactly one editor
+/// window, so the focused value either equals the main session or is
+/// nil (no key window — e.g. Settings is frontmost); callers fall back
+/// to the main session, preserving current behavior.  Phase 2's
+/// document windows publish their own sessions and the same commands
+/// route correctly with no further changes.
+extension FocusedValues {
+    @Entry var documentSession: DocumentSession?
+}
+
 extension Notification.Name {
     static let aiPageActionRequested = Notification.Name("aiPageActionRequested")
     static let aiAgentToggleRequested = Notification.Name("aiAgentToggleRequested")
@@ -129,67 +144,11 @@ struct NotationApp: App {
                 Divider()
             }
 
-            CommandGroup(replacing: .newItem) {
-                Button("New") { store.document.newDocument() }
-                    .keyboardShortcut("n")
-
-                Divider()
-
-                Button("Open Folder…") { store.openFolderDialog() }
-                    .keyboardShortcut("o")
-
-                Button("Open File…") { store.document.openFileDialog() }
-                    .keyboardShortcut("o", modifiers: [.command, .shift])
-
-                Menu("Switch Workspace") {
-                    if recentWorkspaces.isEmpty {
-                        Text("No saved workspaces")
-                    } else {
-                        ForEach(recentWorkspaces, id: \.url.absoluteString) { entry in
-                            Button {
-                                guard entry.url != store.workspace.folderURL else { return }
-                                store.adoptRecentWorkspace(entry.url)
-                            } label: {
-                                if entry.url == store.workspace.folderURL {
-                                    Label(entry.displayName, systemImage: "checkmark")
-                                } else {
-                                    Text(entry.displayName)
-                                }
-                            }
-                        }
-                        Divider()
-                        Button("Add Folder as Workspace…") {
-                            store.openFolderDialog()
-                        }
-                    }
-                }
-                .keyboardShortcut("o", modifiers: [.command, .option])
-
-                Menu("Open Recent File") {
-                    if recentURLs.isEmpty {
-                        Text("No recent files")
-                    } else {
-                        ForEach(recentURLs, id: \.absoluteString) { url in
-                            Button(url.lastPathComponent) {
-                                store.document.loadFile(url)
-                            }
-                        }
-                        Divider()
-                        Button("Clear Menu") {
-                            RecentFiles.shared.clear()
-                            recentURLs = []
-                        }
-                    }
-                }
-            }
-
-            CommandGroup(replacing: .saveItem) {
-                Button("Save") { store.document.save() }
-                    .keyboardShortcut("s")
-
-                Button("Save As…") { store.document.saveAs() }
-                    .keyboardShortcut("s", modifiers: [.command, .shift])
-            }
+            FileCommands(
+                store: store,
+                recentURLs: $recentURLs,
+                recentWorkspaces: $recentWorkspaces
+            )
 
             // Forward the standard clipboard selectors to the first
             // responder (editor WKWebView, sidebar responder, or a focused
@@ -273,6 +232,90 @@ struct NotationApp: App {
         if EntitlementState.shared.isPro { return true }
         NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
         return false
+    }
+}
+
+/// File-menu commands.  Extracted into its own `Commands` type because
+/// `@FocusedValue` only updates reliably inside a Commands conformance —
+/// reading it from the App struct's body silently sticks to nil.
+///
+/// Document-targeting items (New / Open File / Recents / Save / Save As)
+/// resolve against the focused window's session with a main-session
+/// fallback; workspace-registry items (Open Folder / Switch Workspace)
+/// always talk to the app-level store since there is exactly one
+/// workspace regardless of which window is key.
+private struct FileCommands: Commands {
+    let store: AppModel
+    @Binding var recentURLs: [URL]
+    @Binding var recentWorkspaces: [(url: URL, displayName: String)]
+    @FocusedValue(\.documentSession) private var focusedDocument
+
+    private var activeDocument: DocumentSession {
+        focusedDocument ?? store.document
+    }
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New") { activeDocument.newDocument() }
+                .keyboardShortcut("n")
+
+            Divider()
+
+            Button("Open Folder…") { store.openFolderDialog() }
+                .keyboardShortcut("o")
+
+            Button("Open File…") { activeDocument.openFileDialog() }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+
+            Menu("Switch Workspace") {
+                if recentWorkspaces.isEmpty {
+                    Text("No saved workspaces")
+                } else {
+                    ForEach(recentWorkspaces, id: \.url.absoluteString) { entry in
+                        Button {
+                            guard entry.url != store.workspace.folderURL else { return }
+                            store.adoptRecentWorkspace(entry.url)
+                        } label: {
+                            if entry.url == store.workspace.folderURL {
+                                Label(entry.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(entry.displayName)
+                            }
+                        }
+                    }
+                    Divider()
+                    Button("Add Folder as Workspace…") {
+                        store.openFolderDialog()
+                    }
+                }
+            }
+            .keyboardShortcut("o", modifiers: [.command, .option])
+
+            Menu("Open Recent File") {
+                if recentURLs.isEmpty {
+                    Text("No recent files")
+                } else {
+                    ForEach(recentURLs, id: \.absoluteString) { url in
+                        Button(url.lastPathComponent) {
+                            activeDocument.loadFile(url)
+                        }
+                    }
+                    Divider()
+                    Button("Clear Menu") {
+                        RecentFiles.shared.clear()
+                        recentURLs = []
+                    }
+                }
+            }
+        }
+
+        CommandGroup(replacing: .saveItem) {
+            Button("Save") { activeDocument.save() }
+                .keyboardShortcut("s")
+
+            Button("Save As…") { activeDocument.saveAs() }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+        }
     }
 }
 
