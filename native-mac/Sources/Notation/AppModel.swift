@@ -24,6 +24,10 @@ final class AppModel {
     let document = DocumentSession()
     let sidebar = SidebarState()
 
+    /// External-file document windows (B2 phase 2): sessions + security
+    /// scopes for every open document window, keyed by file URL.
+    let documentWindows = DocumentWindowManager()
+
     init() {
         // Register UserDefaults defaults BEFORE anything reads autosave keys.
         // `@AppStorage` initializers only apply once the matching SettingsView

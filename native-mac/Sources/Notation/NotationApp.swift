@@ -208,6 +208,28 @@ struct NotationApp: App {
             }
         }
 
+        // Document windows (B2 phase 2): external .md files open here — a
+        // bare editor with a real close, one window per file.  Value-based
+        // WindowGroup gives dedup for free: `openWindow(value:)` for an
+        // already-open URL focuses the existing window instead of spawning
+        // a sibling.
+        WindowGroup(id: "document", for: URL.self) { $url in
+            if let url {
+                DocumentWindowView(fileURL: url)
+                    .environment(store)
+                    .environment(paywallStore)
+                    .environment(EntitlementState.shared)
+            }
+        }
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.unified)
+        .defaultSize(width: 760, height: 640)
+        // Transient by design: reopening files after relaunch goes through
+        // the Recents menu (security-scoped bookmarks), not window
+        // restoration — a restored window would materialise with no
+        // prepared session and no sandbox scope to read its file.
+        .restorationBehavior(.disabled)
+
         Settings {
             SettingsView()
                 .environment(EntitlementState.shared)

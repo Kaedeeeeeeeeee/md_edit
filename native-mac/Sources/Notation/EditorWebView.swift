@@ -3,6 +3,10 @@ import WebKit
 
 struct EditorWebView: NSViewRepresentable {
     @Environment(AppModel.self) private var store
+    // The document this editor renders.  Injected per window: the main
+    // window provides `store.document`, document windows provide their
+    // own session — same view, different environment (B2 phase 2).
+    @Environment(DocumentSession.self) private var document
     @Environment(AgentChatController.self) private var agentChat
 
     func makeCoordinator() -> Coordinator {
@@ -20,6 +24,7 @@ struct EditorWebView: NSViewRepresentable {
         config.setURLSchemeHandler(schemeHandler, forURLScheme: EditorSchemeHandler.scheme)
         context.coordinator.schemeHandler = schemeHandler
         context.coordinator.store = store
+        context.coordinator.document = document
         context.coordinator.refreshAccessGrants()
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -50,20 +55,21 @@ struct EditorWebView: NSViewRepresentable {
         return webView
     }
 
-    // Pull pattern: SwiftUI re-invokes this whenever any observed property
-    // on `store` changes.  Reading `store.document.loadEpoch` here registers it as a
+    // Pull pattern: SwiftUI re-invokes this whenever an observed property
+    // changes.  Reading `document.loadEpoch` here registers it as a
     // dependency; the coordinator then compares against the last dispatched
     // epoch and only pushes to JS when a fresh load is required (file open,
     // new document, file delete).  Editor-originated changes don't bump the
     // epoch so we don't loop.
     func updateNSView(_ nsView: WKWebView, context: Context) {
         context.coordinator.store = store
+        context.coordinator.document = document
         // Set grants BEFORE bumping the load epoch — if the editor re-renders
         // and immediately fetches an attachments/foo.png reference, the
         // grants must already be in place or we'd flash a broken image.
         context.coordinator.refreshAccessGrants()
-        let epoch = store.document.loadEpoch
-        let markdown = store.document.currentMarkdown
+        let epoch = document.loadEpoch
+        let markdown = document.currentMarkdown
         context.coordinator.syncIfNeeded(epoch: epoch, markdown: markdown)
     }
 
@@ -71,6 +77,7 @@ struct EditorWebView: NSViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         weak var webView: WKWebView?
         weak var store: AppModel?
+        weak var document: DocumentSession?
         /// WKWebViewConfiguration does NOT retain its scheme handlers, so we
         /// keep one alive here for the lifetime of the coordinator.
         var schemeHandler: EditorSchemeHandler?
@@ -192,16 +199,16 @@ struct EditorWebView: NSViewRepresentable {
                 if let pending {
                     self.pending = nil
                     sendLoad(pending.markdown)
-                } else if let store {
+                } else if let document {
                     // Editor ready but no explicit load has been requested
                     // yet (epoch 0).  Push the initial document anyway so
-                    // the editor reflects whatever is in the store.
-                    lastDispatchedEpoch = store.document.loadEpoch
-                    sendLoad(store.document.currentMarkdown)
+                    // the editor reflects whatever is in the session.
+                    lastDispatchedEpoch = document.loadEpoch
+                    sendLoad(document.currentMarkdown)
                 }
             case "change":
                 if let markdown = dict["markdown"] as? String {
-                    store?.document.handleEditorChange(markdown)
+                    document?.handleEditorChange(markdown)
                 }
             case "saveImage":
                 guard
@@ -228,7 +235,7 @@ struct EditorWebView: NSViewRepresentable {
         }
 
         private func handleSaveImage(requestId: String, base64: String, ext: String) {
-            guard let store, let schemeHandler else {
+            guard let store, let document, let schemeHandler else {
                 rejectUpload(requestId: requestId, message: "Editor not ready.")
                 return
             }
@@ -240,7 +247,7 @@ struct EditorWebView: NSViewRepresentable {
 
             // Try to resolve the image scope from already-known sources
             // (active workspace, or a previously-granted parent directory).
-            if let scope = store.document.imageScope(for: store.document.currentFileURL) {
+            if let scope = document.imageScope(for: document.currentFileURL) {
                 writeImage(data: data, ext: ext, in: scope, requestId: requestId, store: store)
                 return
             }
@@ -249,7 +256,7 @@ struct EditorWebView: NSViewRepresentable {
             // user once for parent-dir authorization.  The granted URL is
             // pushed onto scheme handler grants so the new image (and any
             // existing image refs in the same doc) can be read back.
-            if let fileURL = store.document.currentFileURL {
+            if let fileURL = document.currentFileURL {
                 DebugLog.write("[paste] requesting docDir grant for \(fileURL.lastPathComponent)")
                 guard let docDir = DocumentDirBookmarks.requestGrant(for: fileURL) else {
                     rejectUpload(
@@ -282,9 +289,9 @@ struct EditorWebView: NSViewRepresentable {
             }
         }
 
-        /// Recompute the scheme handler's allowed read roots based on
-        /// `store.workspace.folderURL` and the current document's parent-dir grant.
-        /// Called from `updateNSView` (every store change) and from
+        /// Recompute the scheme handler's allowed read roots from the
+        /// active workspace and the current document's parent-dir grant.
+        /// Called from `updateNSView` (every observed change) and from
         /// `makeNSView` (initial setup).
         func refreshAccessGrants() {
             guard let store, let schemeHandler else { return }
@@ -292,23 +299,23 @@ struct EditorWebView: NSViewRepresentable {
             if let folder = store.workspace.folderURL {
                 grants.append(.init(url: folder, role: .workspace))
             }
-            // Floating doc?  Look up its parent-dir grant if one already
-            // exists (don't prompt — that only happens on user paste).
-            if let fileURL = store.document.currentFileURL,
-               let folder = store.workspace.folderURL,
-               !FilePaths.contains(parent: folder, child: fileURL),
-               let docDir = DocumentDirBookmarks.grant(for: fileURL) {
-                grants.append(.init(url: docDir, role: .docDir))
-            } else if let fileURL = store.document.currentFileURL,
-                      store.workspace.folderURL == nil,
-                      let docDir = DocumentDirBookmarks.grant(for: fileURL) {
-                grants.append(.init(url: docDir, role: .docDir))
+            // Document outside the workspace (document windows; the main
+            // window won't hit this after phase-2 routing): surface its
+            // parent-dir grant if one already exists — never prompts,
+            // prompting only happens on user paste.
+            if let fileURL = document?.currentFileURL {
+                let insideWorkspace = store.workspace.folderURL.map {
+                    FilePaths.contains(parent: $0, child: fileURL)
+                } ?? false
+                if !insideWorkspace, let docDir = DocumentDirBookmarks.grant(for: fileURL) {
+                    grants.append(.init(url: docDir, role: .docDir))
+                }
             }
             schemeHandler.accessGrants = grants
             // Resolution base for the open document's relative image refs.
             // The directory is only *readable* when it's inside one of the
             // grants above; the scheme handler enforces that containment.
-            schemeHandler.documentDirectory = store.document.currentFileURL?
+            schemeHandler.documentDirectory = document?.currentFileURL?
                 .deletingLastPathComponent()
                 .standardizedFileURL
         }

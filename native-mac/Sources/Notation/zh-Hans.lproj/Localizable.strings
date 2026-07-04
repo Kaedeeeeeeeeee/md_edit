@@ -190,6 +190,12 @@
 "Notation can open Markdown files up to 20 MB. This file is %@." = "Notation 可打开最大 20 MB 的 Markdown 文件。此文件为 %@。";
 
 
+// MARK: - DocumentWindowView.swift — stale-window fallback
+
+"This document is no longer open." = "此文档已不再打开。";
+"Reopen it from Finder or the File menu." = "请从 Finder 或“文件”菜单重新打开。";
+
+
 // MARK: - SidebarView.swift — empty workspace state + footer count
 
 "No notes yet" = "暂无笔记";
