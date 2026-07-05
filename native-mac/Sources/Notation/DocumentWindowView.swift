@@ -12,28 +12,19 @@ import AppKit
 /// URL so nothing is shared with the main window anyway.
 struct DocumentWindowView: View {
     let fileURL: URL
+    let session: DocumentSession
 
     @Environment(AppModel.self) private var store
     @State private var closeGuard: DocumentCloseGuard?
     @State private var agentChat: AgentChatController
 
-    init(fileURL: URL) {
+    init(fileURL: URL, session: DocumentSession) {
         self.fileURL = fileURL
+        self.session = session
         _agentChat = State(initialValue: AgentChatController(bridge: EditorJSBridge()))
     }
 
     var body: some View {
-        if let session = store.documentWindows.session(for: fileURL) {
-            editor(session)
-        } else {
-            // Only reachable if the scene materialises without a prepared
-            // session (state restoration is disabled, so in practice: never).
-            // Still, fail soft rather than crash on a force-unwrap.
-            missingSession
-        }
-    }
-
-    private func editor(_ session: DocumentSession) -> some View {
         EditorWebView()
             .overlay(alignment: .top) {
                 if session.localImageAuthNeeded {
@@ -54,7 +45,6 @@ struct DocumentWindowView: View {
             .overlay(alignment: .bottomTrailing) {
                 AgentOverlay()
             }
-            .navigationTitle(windowTitle(session))
             // Menu-command routing: ⌘S / ⌘⇧S resolve against this session
             // while this window is key (FileCommands reads the focused value).
             .focusedSceneValue(\.documentSession, session)
@@ -68,11 +58,17 @@ struct DocumentWindowView: View {
                     )
                     guardian.attach(to: window)
                     closeGuard = guardian
+                    // Window title / dirty dot are set on the NSWindow
+                    // directly: this view is hosted in an NSHostingController
+                    // (see DocumentWindowManager), so SwiftUI's
+                    // navigationTitle has no scene to write into.
+                    window.title = title
                     window.isDocumentEdited = session.isDirty
                 }
             )
             .onChange(of: session.isDirty) { _, dirty in
                 closeGuard?.window?.isDocumentEdited = dirty
+                closeGuard?.window?.title = title
             }
             .onAppear {
                 agentChat.bind(to: fileURL)
@@ -84,24 +80,49 @@ struct DocumentWindowView: View {
             .frame(minWidth: 480, minHeight: 360)
     }
 
-    private var missingSession: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "doc.questionmark")
-                .font(.system(size: 34, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text("This document is no longer open.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Text("Reopen it from Finder or the File menu.")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(minWidth: 480, minHeight: 360)
+    private var title: String {
+        fileURL.deletingPathExtension().lastPathComponent
     }
+}
 
-    private func windowTitle(_ session: DocumentSession) -> String {
-        let name = fileURL.deletingPathExtension().lastPathComponent
-        return session.isDirty ? "● \(name)" : name
+/// Builds the `NSWindow` that hosts a `DocumentWindowView`.  Injected into
+/// `DocumentWindowManager.makeWindow` by `NotationApp` so window creation
+/// has the app-level environment objects it needs.
+///
+/// Uses `NSHostingController` rather than a SwiftUI `WindowGroup` because
+/// `openWindow` can't open a document window during cold launch (see the
+/// manager's doc comment).  The SwiftUI content is otherwise identical;
+/// only the hosting differs.
+@MainActor
+enum DocumentWindowHost {
+    /// Cascades successive windows so multiple open documents don't stack
+    /// exactly on top of each other.
+    private static var cascadePoint = NSPoint.zero
+
+    static func makeWindow(
+        fileURL: URL,
+        session: DocumentSession,
+        store: AppModel,
+        paywall: PaywallStore
+    ) -> NSWindow {
+        let root = DocumentWindowView(fileURL: fileURL, session: session)
+            .environment(store)
+            .environment(paywall)
+            .environment(EntitlementState.shared)
+
+        let hosting = NSHostingController(rootView: root)
+        let window = NSWindow(contentViewController: hosting)
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.title = fileURL.deletingPathExtension().lastPathComponent
+        // The manager is the sole owner; releasing on close would double-free
+        // against the entry's strong reference.
+        window.isReleasedWhenClosed = false
+        window.setContentSize(NSSize(width: 760, height: 640))
+        if cascadePoint == .zero {
+            window.center()
+        }
+        cascadePoint = window.cascadeTopLeft(from: cascadePoint)
+        return window
     }
 }
 

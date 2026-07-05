@@ -145,21 +145,25 @@ DocumentSession 上的 `loadEpoch: Int` 单调递增，编辑器在 `updateNSVie
 
 ### 10. 文档小窗 + 按包含关系路由（B2 阶段 2，2026-07）
 
-`AppModel.openDocument(at:heldScope:)` 是"打开一个 md"的唯一入口（Finder 双击 / Open File… / Recents 全走它）：workspace 内 → 主窗 + 侧栏展开选中；workspace 外 → 独立文档小窗（`WindowGroup(id:"document", for: DocumentWindowID.self)`，同 URL 二开自动聚焦既有窗）。杂交态（侧栏是工作区树、编辑器却是外部文件）从此不可达。要点：
-- **冷启动竞态**：Finder open 事件可能早于任何 SwiftUI 视图存在，AppKit 又调不到 `openWindow` 环境 action → `DocumentWindowManager` 维护待开窗队列，主 scene 的 `DocumentWindowOpener` 在 onReceive **和** onAppear 双路排空。多文件连开（Finder 多选 Open）时，通知必须 `DispatchQueue.main.async` 延后一个 runloop tick，否则在 AE handler 内同步 post 会赶上 SwiftUI scene 更新、`openWindow` 静默 no-op、值卡在队列里。
+`AppModel.openDocument(at:heldScope:)` 是"打开一个 md"的唯一入口（Finder 双击 / Open File… / Recents 全走它）：workspace 内 → 主窗 + 侧栏展开选中；workspace 外 → 独立文档小窗（**AppKit `NSWindow` + `NSHostingController`**，由 `DocumentWindowManager.makeWindow` 工厂建，`NotationApp.init` 注入；同 URL 二开自动聚焦既有窗）。杂交态（侧栏是工作区树、编辑器却是外部文件）从此不可达。要点：
+- **文档小窗是 AppKit 不是 SwiftUI scene**（关键，见决策 #11）：`DocumentWindowManager` 持有每窗的 `NSWindow`（强引用，`isReleasedWhenClosed=false`）+ `DocumentSession` + security scope；`makeWindow` 工厂把 `DocumentWindowView` 塞进 `NSHostingController` 并注入 `store/paywall/entitlement` 三个 environment。窗口标题/dirty 圆点直接设 `NSWindow`（`navigationTitle` 在 hosting controller 里没 scene 可写）。
+- **文件事件走 SwiftUI 正常路由**：`application(_:open:)`（SwiftUI adaptor 转发）→ `openDocument`。不再抢 AE 事件（历史见 #11）。冷启动 pendingURLs 在 store attach 后排空。
 - **scope 所有权转移**：`openDocument` 接收已 START 的 security-scoped URL；workspace 文件立刻释放（workspace grant 已覆盖），外部文件交给窗口注册表、关窗时释放。
-- **文档小窗真关闭**（`DocumentCloseGuard`，与主窗 orderOut 的 `CloseGuard` 是兄弟变体）；不参与状态恢复（`.restorationBehavior(.disabled)`），重启后重开走 Recents bookmark。
+- **文档小窗真关闭**（`DocumentCloseGuard`，`windowShouldClose` 返回 true；与主窗 orderOut 的 `CloseGuard` 是兄弟变体）；`windowWillClose` 摘 registry、cancel autosave、释放 scope。重启后重开走 Recents bookmark。
 - **RecentFiles 存 security-scoped bookmark**（`RecentFileBookmarks` key），修掉了"重启后工作区外最近文件消失/打不开"的沙盒 bug；渲染用 peek、点击才 resolve 单条。
 - **⌘N 不走焦点路由**：新建笔记永远属于工作区（Untitled autosave 需要落点），文档小窗里 ⌘N 会前置主窗。
 - 侧栏 reveal 必须插入树扫描产出的同一批 node.url（路径拼出来的 URL 会因结尾斜杠差异 Set 匹配失败）。
 
-### 11. macOS 26 上文档小窗踩的三个 SwiftUI/AppKit 坑（B2 阶段 2 调试）
+### 11. 为什么文档小窗用 AppKit 而非 SwiftUI WindowGroup（B2 阶段 2 血泪调试）
 
-三个都花了单独的 debug session 定位，日志走 `NOTATION_STDOUT_LOG=1 ./Notation.app/Contents/MacOS/Notation`（容器 log 文件被 TCC 挡，直接终端跑二进制看 stdout 镜像）：
+文档小窗**最初是** `WindowGroup(id:"document", for: DocumentWindowID.self)` + `openWindow(value:)`，绕了一大圈才发现走不通，最终改成 AppKit 手搭。踩的坑（日志走 `NOTATION_STDOUT_LOG=1 ./Notation.app/Contents/MacOS/Notation`，容器 log 被 TCC 挡）：
 
-1. **SwiftUI 的 AppDelegate adaptor 会把自己的 wrapper 装成 `NSApp.delegate`**，`NSApp.delegate as? AppDelegate` 在 macOS 26 返回 nil（回调仍转发给我们，但类型转换失败），悄悄打断了所有 AppKit 侧靠这个转换的调用点（窗口注册、showMainWindow、关闭按钮 dirty 圆点）。解法：`AppDelegate` 在 `init` 里把自己存进 `static weak var shared`，全部改走它。
-2. **SwiftUI 的文件打开事件路由会 `NSWindow._close` 掉当前呈现的 Window**：外部文件打开时，SwiftUI 的 `AppWindowsController.activateWindowForExternalEvent` 为了给事件找窗口，直接 `_close` 主窗（程序性关闭、**绕过 windowShouldClose**，CloseGuard 拦不到）。解法：`AppDelegate.applicationWillFinishLaunching` 里抢先 `NSAppleEventManager.setEventHandler` 认领 `kAEOpenDocuments`（在 AppKit 装它自己的 handler 之前），事件自己解析 URL 走 `openDocument`，SwiftUI 的 scene 路由再也碰不到。
-3. **`WindowGroup(for: URL.self)` 会被文件打开事件的 presentation-type 匹配命中**（触发坑 2）。解法：包一层不透明的 `DocumentWindowID { let url }` 当 presentation type，文档窗口只由我们自己的 `openWindow(id:value:)` 开，事件路由认不出它。
+1. **SwiftUI 的 AppDelegate adaptor 会把自己的 wrapper 装成 `NSApp.delegate`**，`NSApp.delegate as? AppDelegate` 在 macOS 26 返回 nil（回调仍转发给我们，但类型转换失败），悄悄打断了所有 AppKit 侧靠这个转换的调用点（窗口注册、showMainWindow、关闭按钮 dirty 圆点）。解法：`AppDelegate.init` 里存 `static weak var shared`，全部改走它。**（这条仍然有效）**
+2. **`openWindow` 冷启动打不开文档 WindowGroup**：app 被"打开文档"冷启动时，scene 还没 active，`openWindow(id:"document", value:)` 静默 no-op（延迟 500ms 也没用）。这是弃用 SwiftUI WindowGroup 的**决定性**原因。
+3. **`WindowGroup(for: URL.self)` 会被文件事件路由命中并 `_close` 主窗**：SwiftUI 的 `AppWindowsController.activateWindowForExternalEvent` 为文件事件找窗口时直接 `_close` 主窗（绕过 windowShouldClose）。曾用"`applicationWillFinishLaunching` 抢 `kAEOpenDocuments` 事件 + 不透明 `DocumentWindowID` 包装类型"两个 workaround 硬顶，但坑 2 无解。
+4. **最终方案**：文档窗改 AppKit `NSWindow`（决策 #10），坑 2、3 一起消失——没有 URL WindowGroup，SwiftUI 路由无文档 scene 可匹配，**不再关主窗**，AE 抢占也随之删除（它反而会抢先建 AppKit 窗口、把 SwiftUI 主窗挤掉、导致主窗冷启动打开外部文件后不可达）。教训：**别为了统一到 SwiftUI 窗口模型硬扛平台时序；这个项目一贯的做法（决策 #6）就是 SwiftUI 窗口不可靠时直接上 AppKit。**
+
+**测试陷阱（记一笔，浪费了很多轮）**：① 测冷启动务必 `pkill -9 -f Notation.app` 确认残留进程为 0——旧僵尸进程会抢处理文件事件、跑旧二进制、污染结果；② `open` 打开文件测特定 build 必须 `open -a /path/App file`，`open /path/App file`（漏 -a）会让文件被**默认 handler**（/Applications 里的旧版）处理；③ 判据用精确窗口名（`external-smoke`），别数窗口总数——有个 500x500 无名幽灵窗会让"数量≥1"假阳性。
 
 ## 常用命令
 

@@ -1,74 +1,75 @@
-import Foundation
+import AppKit
 import Observation
-
-/// Window-value wrapper for the document `WindowGroup`.
-///
-/// Deliberately NOT a bare `URL`: SwiftUI's scene system matches incoming
-/// file-open events against `WindowGroup(for: URL.self)` presentation
-/// types, and when it reroutes an event to that group it CLOSES the
-/// already-presented single `Window` (main) first — programmatic close,
-/// so CloseGuard's windowShouldClose never gets asked.  Wrapping the URL
-/// in a private type makes the group invisible to that matching; all
-/// document windows open exclusively through our own
-/// `openWindow(id:value:)` calls.
-struct DocumentWindowID: Codable, Hashable {
-    let url: URL
-}
 
 /// Registry of external-file document windows (B2 phase 2).
 ///
 /// One entry per open document window, keyed by standardized file URL.
-/// The manager owns each window's `DocumentSession` and — when the file
-/// was opened through a security-scoped bookmark (Recents) — the started
-/// scope handle, which must stay open for the window's lifetime so
-/// autosave can keep writing, and be released exactly once on close.
+/// The manager owns each window's `DocumentSession`, the `NSWindow`
+/// itself, and — when the file was opened through a security-scoped
+/// bookmark (Recents) — the started scope handle, which must stay open
+/// for the window's lifetime so autosave can keep writing, and be
+/// released exactly once on close.
 ///
-/// The manager never opens NSWindows itself: `AppModel.openDocument`
-/// prepares an entry here, then posts `.openDocumentWindowRequested`;
-/// a modifier on the main scene calls SwiftUI's `openWindow(id:value:)`,
-/// and `DocumentWindowView` looks its session up by URL.  Value-based
-/// `WindowGroup` gives dedup for free: opening the same URL twice makes
-/// the existing window key instead of spawning a sibling.
+/// Why AppKit windows and not a SwiftUI `WindowGroup`: SwiftUI's
+/// `openWindow` can't open a document window during **cold launch** — the
+/// scene isn't active yet when the file-open Apple event arrives, so the
+/// call silently no-ops (even delayed by half a second).  Worse, a
+/// `WindowGroup(for: URL.self)` gets matched by SwiftUI's own file-open
+/// routing, which closes the presented main window on the way.  This is
+/// exactly the situation CLAUDE.md decision #6 describes: when SwiftUI's
+/// windowing is unreliable, drive `NSWindow` directly.  The window's SwiftUI
+/// content is hosted in an `NSHostingController` via the injected
+/// `makeWindow` factory.
 @MainActor
 @Observable
 final class DocumentWindowManager {
-    struct Entry {
+    final class Entry {
         let session: DocumentSession
+        /// Strong: the manager is the sole owner keeping the window alive
+        /// (windows are `isReleasedWhenClosed = false`).  Dropping the
+        /// entry on close releases it.
+        let window: NSWindow
         /// Started security-scoped URL backing this window's file access,
         /// if one was needed (bookmark-resolved opens).  LaunchServices
         /// opens (Finder double-click) carry an implicit process-lifetime
         /// grant and store nil here.
         let scopeURL: URL?
+
+        init(session: DocumentSession, window: NSWindow, scopeURL: URL?) {
+            self.session = session
+            self.window = window
+            self.scopeURL = scopeURL
+        }
     }
 
     private(set) var entries: [URL: Entry] = [:]
 
-    /// Window values SwiftUI hasn't been asked to open yet.  AppKit-side
-    /// code can't call `openWindow` (it's an environment action), so
-    /// `open(_:heldScope:)` enqueues here and the caller posts
-    /// `.openDocumentWindowRequested`; the main scene's
-    /// `DocumentWindowOpener` drains on receipt AND on appear — the
-    /// on-appear drain is what saves cold-launch Finder opens that fire
-    /// before any view exists to observe the notification.
-    private var pendingWindowValues: [DocumentWindowID] = []
+    /// Builds the `NSWindow` (SwiftUI content + environment) for a prepared
+    /// session.  Injected by `NotationApp` at startup because window
+    /// construction needs the app-level environment objects (AppModel,
+    /// PaywallStore) that live on the App struct.
+    var makeWindow: ((URL, DocumentSession) -> NSWindow)?
 
-    /// Prepare (or reuse) the session for `url` and return the
-    /// standardized URL to hand to `openWindow(value:)`.  Takes ownership
-    /// of `heldScope`: it will be released when the window closes.
+    /// Open a document window for `url`, or focus the existing one.
+    /// Takes ownership of `heldScope` (a STARTED security-scoped URL):
+    /// released when the window closes, or immediately if the window is
+    /// already open.
     ///
-    /// Re-opening an already-open URL intentionally does NOT reload the
-    /// session — the existing window just gets focused, preserving any
-    /// unsaved editor state.  A redundant `heldScope` for an existing
-    /// entry is released immediately (the entry already holds one).
-    @discardableResult
-    func open(_ url: URL, heldScope: URL?) -> URL {
+    /// Re-opening an already-open URL focuses its window without reloading
+    /// the session, preserving any unsaved editor state.
+    func open(_ url: URL, heldScope: URL?) {
         let std = url.standardizedFileURL
-        if entries[std] != nil {
+        if let existing = entries[std] {
             heldScope?.stopAccessingSecurityScopedResource()
-            // Re-request the window anyway: `openWindow(value:)` for an
-            // existing value focuses the window instead of duplicating it.
-            pendingWindowValues.append(DocumentWindowID(url: std))
-            return std
+            NSApp.activate(ignoringOtherApps: true)
+            existing.window.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        guard let makeWindow else {
+            DebugLog.write("[docwin] makeWindow factory not wired — dropping open for \(std.lastPathComponent)")
+            heldScope?.stopAccessingSecurityScopedResource()
+            return
         }
 
         let session = DocumentSession()
@@ -79,18 +80,11 @@ final class DocumentWindowManager {
         session.onFileWritten = { _ in }
         session.loadFile(std)
 
-        entries[std] = Entry(session: session, scopeURL: heldScope)
-        pendingWindowValues.append(DocumentWindowID(url: std))
-        DebugLog.write("[docwin] opened session for \(std.lastPathComponent) scope=\(heldScope != nil)")
-        return std
-    }
-
-    /// Hand the queued window values to the SwiftUI side.  Called by
-    /// `DocumentWindowOpener` from the main scene.
-    func drainPendingWindowValues() -> [DocumentWindowID] {
-        let drained = pendingWindowValues
-        pendingWindowValues.removeAll()
-        return drained
+        let window = makeWindow(std, session)
+        entries[std] = Entry(session: session, window: window, scopeURL: heldScope)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        DebugLog.write("[docwin] opened window for \(std.lastPathComponent) scope=\(heldScope != nil)")
     }
 
     func session(for url: URL) -> DocumentSession? {
@@ -99,7 +93,8 @@ final class DocumentWindowManager {
 
     /// Tear down the entry for a closed window: cancel any pending
     /// autosave (the window is gone; a late fire would write into a file
-    /// the user believes closed) and release the scope handle.
+    /// the user believes closed) and release the scope handle.  Dropping
+    /// the entry releases the window.
     func close(_ url: URL) {
         let std = url.standardizedFileURL
         guard let entry = entries.removeValue(forKey: std) else { return }

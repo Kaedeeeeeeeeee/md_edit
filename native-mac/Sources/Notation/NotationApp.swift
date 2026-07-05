@@ -57,7 +57,16 @@ struct NotationApp: App {
         let bridge = EditorJSBridge()
         _editorBridge = State(initialValue: bridge)
         _agentChat = State(initialValue: AgentChatController(bridge: bridge))
-        _paywallStore = State(initialValue: PaywallStore())
+        let paywall = PaywallStore()
+        _paywallStore = State(initialValue: paywall)
+        // Wire the document-window factory: external files open in AppKit
+        // NSWindows (see DocumentWindowManager), and window construction
+        // needs these app-level environment objects.
+        store.documentWindows.makeWindow = { url, session in
+            DocumentWindowHost.makeWindow(
+                fileURL: url, session: session, store: store, paywall: paywall
+            )
+        }
         // All stored properties must be initialized before we can call into
         // `appDelegate` (using `self` is otherwise rejected).
         appDelegate.attach(store: store)
@@ -87,7 +96,6 @@ struct NotationApp: App {
                 }
                 .modifier(OpenURLForwarder(store: store))
                 .modifier(AppDelegateAttacher(store: store, didAttach: $didAttachDelegate))
-                .modifier(DocumentWindowOpener(store: store))
                 // Paywall mount: cold-launch trigger waits for StoreKit to
                 // settle (initialize is idempotent) before deciding, so we
                 // never flash the sheet to an already-Pro user.
@@ -116,14 +124,11 @@ struct NotationApp: App {
                     paywallStore.isPaywallVisible = newValue
                 }
         }
-        // Keep claiming external events so a cold-launch file open still
-        // materialises this scene with the full environment chain (the
-        // AppDelegate comment on showMainWindow relies on this).  The
-        // actual file routing happens in application(_:open:) — this
-        // declaration only affects which scene the event system presents.
-        // The document WindowGroup deliberately does NOT use URL as its
-        // presentation type so it can never win this routing (see
-        // DocumentWindowID).
+        // Claim external events so a cold-launch file open materialises
+        // this scene with its full environment chain — the main window
+        // presents normally, and `application(_:open:)` routes the file to
+        // AppModel.openDocument.  Since document windows are AppKit (no URL
+        // WindowGroup), SwiftUI's routing never closes this window.
         .handlesExternalEvents(matching: ["*"])
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
@@ -217,30 +222,9 @@ struct NotationApp: App {
             }
         }
 
-        // Document windows (B2 phase 2): external .md files open here — a
-        // bare editor with a real close, one window per file.  Value-based
-        // WindowGroup gives dedup for free: `openWindow(value:)` for an
-        // already-open URL focuses the existing window instead of spawning
-        // a sibling.
-        // Presentation type is DocumentWindowID, NOT URL — a URL-typed
-        // group gets matched by SwiftUI's file-open event routing, which
-        // closes the main Window while rerouting (see DocumentWindowID).
-        WindowGroup(id: "document", for: DocumentWindowID.self) { $id in
-            if let id {
-                DocumentWindowView(fileURL: id.url)
-                    .environment(store)
-                    .environment(paywallStore)
-                    .environment(EntitlementState.shared)
-            }
-        }
-        .windowStyle(.titleBar)
-        .windowToolbarStyle(.unified)
-        .defaultSize(width: 760, height: 640)
-        // Transient by design: reopening files after relaunch goes through
-        // the Recents menu (security-scoped bookmarks), not window
-        // restoration — a restored window would materialise with no
-        // prepared session and no sandbox scope to read its file.
-        .restorationBehavior(.disabled)
+        // NOTE: external-file document windows are NOT a SwiftUI scene.
+        // They're AppKit NSWindows built by DocumentWindowManager (see its
+        // doc comment for why openWindow can't be used at cold launch).
 
         Settings {
             SettingsView()
@@ -367,32 +351,6 @@ private struct FileCommands: Commands {
 
             Button("Save As…") { activeDocument.saveAs() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
-        }
-    }
-}
-
-/// Drains `DocumentWindowManager`'s queued window values into SwiftUI's
-/// `openWindow` action.  Lives on the main scene's root view: notification
-/// receipt covers the running-app case, the on-appear drain covers
-/// cold-launch file opens that arrive before any view exists.
-private struct DocumentWindowOpener: ViewModifier {
-    let store: AppModel
-    @Environment(\.openWindow) private var openWindow
-
-    func body(content: Content) -> some View {
-        content
-            .onAppear { drain() }
-            .onReceive(
-                NotificationCenter.default.publisher(for: AppModel.openDocumentWindowRequested)
-            ) { _ in
-                drain()
-            }
-    }
-
-    private func drain() {
-        for id in store.documentWindows.drainPendingWindowValues() {
-            DebugLog.write("[docwin] openWindow(value:) for \(id.url.lastPathComponent)")
-            openWindow(id: "document", value: id)
         }
     }
 }

@@ -46,48 +46,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Drained from `NotationApp` once the store is attached.
     var pendingURLs: [URL] = []
 
-    func applicationWillFinishLaunching(_ notification: Notification) {
-        // Claim the kAEOpenDocuments Apple event BEFORE AppKit installs its
-        // own handler during finishLaunching.  If AppKit gets it, the event
-        // flows into SwiftUI's wrapper delegate whose AppWindowsController.
-        // activateWindowForExternalEvent CLOSES the presented main Window
-        // (NSWindow._close — bypasses windowShouldClose, so CloseGuard
-        // can't intercept) before forwarding application(_:open:) to us.
-        // Owning the raw event keeps scene state untouched; routing then
-        // goes through AppModel.openDocument like every other entry point.
-        NSAppleEventManager.shared().setEventHandler(
-            self,
-            andSelector: #selector(handleOpenDocumentsEvent(_:withReply:)),
-            forEventClass: AEEventClass(kCoreEventClass),
-            andEventID: AEEventID(kAEOpenDocuments)
-        )
-    }
-
-    @objc private func handleOpenDocumentsEvent(
-        _ event: NSAppleEventDescriptor,
-        withReply reply: NSAppleEventDescriptor
-    ) {
-        guard let list = event.paramDescriptor(forKeyword: keyDirectObject) else { return }
-        var urls: [URL] = []
-        let count = list.numberOfItems
-        if count > 0 {
-            for index in 1...count {
-                if let url = list.atIndex(index)?.fileURLValue {
-                    urls.append(url)
-                }
-            }
-        } else if let url = list.fileURLValue {
-            // Single-document odoc events can carry the descriptor directly
-            // rather than as a one-element list.
-            urls.append(url)
-        }
-        DebugLog.write("[appdelegate] AE odoc \(urls.count) URLs")
-        openDocuments(at: urls)
-    }
-
-    /// Kept as a fallback for entry points that bypass the Apple event
-    /// (e.g. direct NSWorkspace API calls).  With the odoc handler above
-    /// claimed, AppKit/SwiftUI never invoke this for normal file opens.
+    /// Primary file-open entry.  Called by AppKit (via SwiftUI's delegate
+    /// adaptor) for cold launch, Finder double-click, dock drop, and
+    /// `open foo.md`.  We do NOT claim the raw Apple event anymore: with
+    /// document windows built as AppKit NSWindows (no URL `WindowGroup`),
+    /// SwiftUI's external-event routing has no document scene to match and
+    /// so no longer closes the main window on the way — the reason the AE
+    /// workaround existed in the first place.  Letting SwiftUI start
+    /// normally also means the main window scene actually presents (an
+    /// AppKit window claiming the event first would suppress it).
     func application(_ application: NSApplication, open urls: [URL]) {
         DebugLog.write("[appdelegate] open \(urls.count) URLs")
         openDocuments(at: urls)

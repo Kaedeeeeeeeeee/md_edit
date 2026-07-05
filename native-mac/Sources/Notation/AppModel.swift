@@ -62,15 +62,6 @@ final class AppModel {
 
     // MARK: - Document opening / routing
 
-    /// Posted after `documentWindows` enqueues a window value; the main
-    /// scene's `DocumentWindowOpener` reacts by draining the queue into
-    /// `openWindow(id:"document", value:)`.  Notification + queue rather
-    /// than a plain notification payload so cold-launch opens that fire
-    /// before any view exists still land (the opener also drains on
-    /// appear).  Same environment-action-unreachable-from-AppKit problem
-    /// `.openMainRequested` solves for the main window.
-    static let openDocumentWindowRequested = Notification.Name("com.notation.openDocumentWindowRequested")
-
     /// Single entry point for "open this markdown file", whatever the
     /// source (Finder double-click, Open File…, Recents menu).  The
     /// routing rule that retires the old hybrid state: files inside the
@@ -92,15 +83,6 @@ final class AppModel {
             AppDelegate.shared?.showMainWindow()
         } else {
             documentWindows.open(std, heldScope: heldScope)
-            // Async post: when several file-open Apple events arrive in
-            // quick succession (Finder "Open" on a multi-selection), a
-            // synchronous notification fired from inside the AE handler
-            // races SwiftUI's scene update — `openWindow` no-ops and the
-            // value stays stranded in the queue.  Deferring to a fresh
-            // main-runloop tick lets each open settle before the drain.
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: Self.openDocumentWindowRequested, object: nil)
-            }
         }
     }
 
