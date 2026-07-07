@@ -15,9 +15,20 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            WorkspaceHeader(recents: $recents)
-            Divider()
-            content
+            VStack(spacing: 8) {
+                WorkspaceHeader(recents: $recents)
+                SidebarQuickActions()
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+
+            Divider().opacity(0.65)
+
+            VStack(spacing: 0) {
+                SidebarSectionHeader(itemCount: visibleCount)
+                content
+            }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // Right-click on empty background → workspace-root actions.
                 // Per-row `.contextMenu` on NodeRow wins on row hits.
@@ -33,10 +44,11 @@ struct SidebarView: View {
                     let moved = store.move(urls, into: folder)
                     return !moved.isEmpty
                 }
-            Divider()
+
+            Divider().opacity(0.65)
             SidebarFooter(itemCount: visibleCount)
         }
-        .frame(minWidth: 200, idealWidth: 260, maxWidth: 360)
+        .frame(minWidth: 220, idealWidth: 280, maxWidth: 380)
         // AppKit responder backing: claims first-responder on row tap /
         // empty-area click so the standard Edit menu routes Cut/Copy/Paste/
         // Delete (and the ⌫ key) to file ops, and yields to the editor's
@@ -66,7 +78,8 @@ struct SidebarView: View {
                         )
                     }
                 }
-                .padding(.vertical, 6)
+                .padding(.top, 2)
+                .padding(.bottom, 8)
                 .padding(.horizontal, 6)
             }
             .onAppear {
@@ -84,9 +97,9 @@ struct SidebarView: View {
     /// Right-click-on-empty-sidebar menu: workspace-root actions.
     @ViewBuilder
     private var rootContextMenu: some View {
-        Button("New File at root") { store.createNewFile() }
+        Button("New Page") { store.createNewFile() }
             .disabled(store.workspace.folderURL == nil)
-        Button("New Folder at root") { store.createNewFolder() }
+        Button("New Folder") { store.createNewFolder() }
             .disabled(store.workspace.folderURL == nil)
         if store.sidebar.clipboard != nil {
             Divider()
@@ -115,78 +128,113 @@ private struct WorkspaceHeader: View {
     @Environment(AppModel.self) private var store
     @Binding var recents: [(url: URL, displayName: String)]
     @State private var hovering = false
+    @State private var showingSwitcher = false
 
     var body: some View {
-        Menu {
-            ForEach(menuRows, id: \.url.absoluteString) { entry in
-                Button {
-                    guard entry.url != store.workspace.folderURL else { return }
-                    store.adoptRecentWorkspace(entry.url)
-                } label: {
-                    HStack {
-                        Image(systemName: entry.url == store.workspace.folderURL
-                              ? "checkmark.circle.fill"
-                              : "folder")
-                        VStack(alignment: .leading) {
-                            Text(entry.displayName)
-                            Text(entry.url.path)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
+        Button {
+            showingSwitcher.toggle()
+        } label: {
+            HStack(spacing: 9) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.14))
+                    Text(workspaceInitial)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+                .frame(width: 28, height: 28)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(currentDisplayName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if let currentPath {
+                        Text(currentPath)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
                 }
-            }
-            Divider()
-            Button {
-                store.openFolderDialog()
-            } label: {
-                Label("Add Folder as Workspace…", systemImage: "folder.badge.plus")
-            }
-            if let folder = store.workspace.folderURL {
-                Button {
-                    store.revealInFinder(folder)
-                } label: {
-                    Label("Reveal in Finder", systemImage: "arrow.up.right.square")
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "rectangle.stack.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.accentColor)
-                Text(currentDisplayName)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            // Hover wash matching the file rows' faint gray — without it
-            // the header gives no hint that it's clickable at all.
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(hovering
-                          ? Color(nsColor: .quaternaryLabelColor).opacity(0.5)
+                          ? Color(nsColor: .quaternaryLabelColor).opacity(0.55)
                           : Color.clear)
             )
             .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .accessibilityLabel("Switch Workspace")
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .popover(isPresented: $showingSwitcher, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(menuRows, id: \.url.absoluteString) { entry in
+                    WorkspaceSwitcherRow(
+                        entry: entry,
+                        isActive: entry.url == store.workspace.folderURL
+                    ) {
+                        showingSwitcher = false
+                        guard entry.url != store.workspace.folderURL else { return }
+                        store.adoptRecentWorkspace(entry.url)
+                    }
+                }
+
+                Divider()
+
+                Button {
+                    showingSwitcher = false
+                    store.openFolderDialog()
+                } label: {
+                    Label("Add Folder as Workspace…", systemImage: "folder.badge.plus")
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+
+                if let folder = store.workspace.folderURL {
+                    Button {
+                        showingSwitcher = false
+                        store.revealInFinder(folder)
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "arrow.up.right.square")
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 5)
+                }
+            }
+            .padding(8)
+            .frame(width: 320, alignment: .leading)
+        }
     }
 
     private var currentDisplayName: String {
         store.workspace.folderURL?.lastPathComponent ?? "No workspace"
+    }
+
+    private var currentPath: String? {
+        guard let folder = store.workspace.folderURL else { return nil }
+        return folder.deletingLastPathComponent().path
+    }
+
+    private var workspaceInitial: String {
+        guard let first = currentDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).first else {
+            return "N"
+        }
+        return String(first).uppercased()
     }
 
     /// Recents with the active workspace pinned at the top, even if it
@@ -201,54 +249,209 @@ private struct WorkspaceHeader: View {
     }
 }
 
+private struct WorkspaceSwitcherRow: View {
+    let entry: (url: URL, displayName: String)
+    let isActive: Bool
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: isActive ? "checkmark.circle.fill" : "folder")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(isActive ? Color.accentColor : .secondary)
+                    .frame(width: 18, alignment: .center)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.displayName)
+                        .font(.system(size: 13, weight: isActive ? .semibold : .regular))
+                        .lineLimit(1)
+                    Text(entry.url.path)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(hovering
+                          ? Color(nsColor: .quaternaryLabelColor).opacity(0.55)
+                          : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+// MARK: - Sidebar top actions
+
+private struct SidebarQuickActions: View {
+    @Environment(AppModel.self) private var store
+
+    var body: some View {
+        VStack(spacing: 2) {
+            SidebarActionRow(
+                title: "New page",
+                systemImage: "square.and.pencil",
+                disabled: store.workspace.folderURL == nil
+            ) {
+                store.createNewFile(in: selectedFolderURL(in: store))
+            }
+
+            SidebarActionRow(
+                title: "New folder",
+                systemImage: "folder.badge.plus",
+                disabled: store.workspace.folderURL == nil
+            ) {
+                store.createNewFolder(in: selectedFolderURL(in: store))
+            }
+        }
+    }
+}
+
+private struct SidebarActionRow: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+    let disabled: Bool
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18, alignment: .center)
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 28)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(hovering
+                          ? Color(nsColor: .quaternaryLabelColor).opacity(0.45)
+                          : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .opacity(disabled ? 0.45 : 1)
+        .onHover { hovering = $0 }
+        .accessibilityLabel(Text(title))
+    }
+}
+
+// MARK: - Pages section header
+
+private struct SidebarSectionHeader: View {
+    @Environment(AppModel.self) private var store
+    let itemCount: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("Pages")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            if itemCount > 0 {
+                Text("\(itemCount)")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer(minLength: 0)
+
+            Menu {
+                Button("New Page") { store.createNewFile() }
+                Button("New Folder") { store.createNewFolder() }
+                Divider()
+                if let folder = store.workspace.folderURL {
+                    Button("Reveal Workspace in Finder") {
+                        store.revealInFinder(folder)
+                    }
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .disabled(store.workspace.folderURL == nil)
+            .help("Add at workspace root")
+            .accessibilityLabel("Add Page or Folder")
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
+    }
+}
+
 // MARK: - Sidebar footer (action bar)
 
 /// Pinned at the bottom of the sidebar, Apple-Notes / Xcode style.
-/// Holds the global file-management actions that used to live in the
-/// window title bar.  Keeping them here makes them visually part of the
-/// file-tree affordance and frees the title bar for document-level
-/// actions only (Save).
+/// Keeps status and paste affordances close to the tree without competing
+/// with the main creation actions above the Pages section.
 private struct SidebarFooter: View {
     @Environment(AppModel.self) private var store
     let itemCount: Int
 
     var body: some View {
-        // Two actions only: New File / New Folder.  Workspace switching
-        // used to have a third button here but it duplicated the header
-        // menu (and the File menu's ⌘⌥O) — removed so the bar reads as
-        // "create things", full stop.
-        HStack(spacing: 6) {
-            Button {
-                store.createNewFile(in: targetFolder())
-            } label: {
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 14, weight: .medium))
+        HStack(spacing: 8) {
+            if let clipboard = store.sidebar.clipboard {
+                Label(clipboardText(for: clipboard), systemImage: clipboardIcon(for: clipboard))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.accessoryBar)
-            .help("New File")
-            .disabled(store.workspace.folderURL == nil)
+                    .lineLimit(1)
 
-            Button {
-                store.createNewFolder(in: targetFolder())
-            } label: {
-                Image(systemName: "folder.badge.plus")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.accessoryBar)
-            .help("New Folder")
-            .disabled(store.workspace.folderURL == nil)
-
-            Spacer()
-
-            if itemCount > 0 {
+                Button("Paste") {
+                    store.paste(into: nil)
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 11, weight: .medium))
+            } else {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
                 Text(countText)
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
+
+            Spacer(minLength: 0)
+
+            Button {
+                if let folder = store.workspace.folderURL {
+                    store.revealInFinder(folder)
+                }
+            } label: {
+                Image(systemName: "arrow.up.right.square")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help("Reveal Workspace in Finder")
+            .accessibilityLabel("Reveal Workspace in Finder")
+            .disabled(store.workspace.folderURL == nil)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -261,19 +464,22 @@ private struct SidebarFooter: View {
             : String(format: String(localized: "%d items"), itemCount)
     }
 
-    /// If exactly one folder is selected, new items go inside it.
-    /// Otherwise they land at workspace root.
-    private func targetFolder() -> URL? {
-        guard store.sidebar.selection.count == 1,
-              let only = store.sidebar.selection.first else {
-            return nil
+    private func clipboardText(for clipboard: SidebarClipboard) -> String {
+        let count = clipboard.urls.count
+        let noun = count == 1 ? String(localized: "item") : String(localized: "items")
+        switch clipboard.op {
+        case .cut:
+            return String(format: String(localized: "Cut %d %@"), count, noun)
+        case .copy:
+            return String(format: String(localized: "Copied %d %@"), count, noun)
         }
-        var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: only.path, isDirectory: &isDir),
-           isDir.boolValue {
-            return only
+    }
+
+    private func clipboardIcon(for clipboard: SidebarClipboard) -> String {
+        switch clipboard.op {
+        case .cut: return "scissors"
+        case .copy: return "doc.on.doc"
         }
-        return nil
     }
 }
 
@@ -282,6 +488,7 @@ private struct SidebarFooter: View {
 private struct NodeRow: View {
     @Environment(AppModel.self) private var store
     @Environment(\.sidebarResponderHandle) private var responderHandle
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let node: FileNode
     let depth: Int
     @Binding var renamingURL: URL?
@@ -308,33 +515,34 @@ private struct NodeRow: View {
 
     @ViewBuilder
     private var rowBody: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             chevron
             icon
             if isRenaming {
                 renameField
             } else {
                 Text(displayName)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13, weight: rowTextWeight))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
             Spacer(minLength: 0)
+            trailingStatus
         }
-        .padding(.leading, CGFloat(depth) * 14 + 4)
+        .padding(.leading, CGFloat(depth) * 16 + 8)
         .padding(.trailing, 6)
-        .padding(.vertical, 5)
+        .frame(height: 28)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(rowBackground)
         )
         .overlay(
             // Drop highlight: faint accent stroke when a drag is hovering
             // a folder row.  Accent is fine here — it's a transient action
             // state, not a persistent selection.
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .strokeBorder(
                     dropTargeted ? Color.accentColor.opacity(0.6) : Color.clear,
                     lineWidth: 1.5
@@ -356,7 +564,7 @@ private struct NodeRow: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 6))
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         // Drop destination: folders accept drops, files don't.
         // For folder rows, isTargeted lights up the overlay accent ring.
@@ -395,6 +603,7 @@ private struct NodeRow: View {
                 handleSingleTap(modifiers: .init())
             }
         )
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
     }
 
     @ViewBuilder
@@ -430,9 +639,9 @@ private struct NodeRow: View {
             // the disclosure animates like a native outline view.
             Image(systemName: "chevron.right")
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                .animation(.easeOut(duration: 0.15), value: isExpanded)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: isExpanded)
                 .frame(width: 12, alignment: .center)
         } else {
             Color.clear.frame(width: 12, height: 12)
@@ -442,14 +651,39 @@ private struct NodeRow: View {
     @ViewBuilder
     private var icon: some View {
         Image(systemName: iconName)
-            .foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
+            .foregroundStyle(iconColor)
             .font(.system(size: 13))
             .frame(width: 16, alignment: .center)
     }
 
+    @ViewBuilder
+    private var trailingStatus: some View {
+        if isCutPending {
+            Image(systemName: "scissors")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.tertiary)
+        } else if isOpenDocument {
+            Circle()
+                .fill(Color.accentColor.opacity(0.8))
+                .frame(width: 5, height: 5)
+                .padding(.trailing, 4)
+                .accessibilityHidden(true)
+        }
+    }
+
     private var iconName: String {
-        if node.isDirectory { return "folder.fill" }
+        if node.isDirectory { return isExpanded ? "folder.fill" : "folder" }
         return isOpenDocument ? "doc.text.fill" : "doc.text"
+    }
+
+    private var iconColor: Color {
+        if isSelected || isOpenDocument { return Color.primary.opacity(0.72) }
+        if node.isDirectory { return Color(nsColor: .secondaryLabelColor) }
+        return Color(nsColor: .tertiaryLabelColor)
+    }
+
+    private var rowTextWeight: Font.Weight {
+        isSelected || isOpenDocument ? .medium : .regular
     }
 
     /// Background colour layering — deliberately all-gray. The selection
@@ -462,13 +696,16 @@ private struct NodeRow: View {
     ///   - Open in editor but selection elsewhere: weaker quaternary gray.
     ///   - Hovered: faintest gray.
     private var rowBackground: Color {
+        if dropTargeted {
+            return Color.accentColor.opacity(0.10)
+        }
         if isSelected {
             return Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
         }
         if isOpenDocument {
-            return Color(nsColor: .quaternaryLabelColor).opacity(0.9)
+            return Color(nsColor: .quaternaryLabelColor).opacity(0.75)
         }
-        if !node.isDirectory, hovering {
+        if hovering {
             return Color(nsColor: .quaternaryLabelColor).opacity(0.5)
         }
         return .clear
@@ -629,18 +866,19 @@ private struct EmptySidebar: View {
     @Environment(AppModel.self) private var store
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             Spacer()
-            Image(systemName: "doc.text")
-                .font(.system(size: 36, weight: .light))
+            Image(systemName: "doc.badge.plus")
+                .font(.system(size: 28, weight: .light))
                 .foregroundStyle(.tertiary)
-            Text("No notes yet")
-                .font(.callout)
+            Text("No pages")
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
-            // Direct affordance instead of a caption pointing at the
-            // footer buttons.
-            Button("New File") {
+            Button {
                 store.createNewFile()
+            } label: {
+                Label("New page", systemImage: "square.and.pencil")
+                    .font(.system(size: 12, weight: .medium))
             }
             .controlSize(.small)
             .disabled(store.workspace.folderURL == nil)
@@ -649,6 +887,20 @@ private struct EmptySidebar: View {
         .frame(maxWidth: .infinity)
         .padding()
     }
+}
+
+@MainActor
+private func selectedFolderURL(in store: AppModel) -> URL? {
+    guard store.sidebar.selection.count == 1,
+          let only = store.sidebar.selection.first else {
+        return nil
+    }
+    var isDir: ObjCBool = false
+    if FileManager.default.fileExists(atPath: only.path, isDirectory: &isDir),
+       isDir.boolValue {
+        return only
+    }
+    return nil
 }
 
 extension FileNode {
