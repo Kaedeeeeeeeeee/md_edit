@@ -25,6 +25,12 @@ type AnyEditor = any;
 
 type AnyBlock = { type: string; content?: unknown };
 
+export interface EditorAgentBridgeOverrides {
+  getDocumentMarkdown?: () => string;
+  insertMarkdownAtCursor?: (markdown: string) => boolean;
+  replaceSelectionWithMarkdown?: (markdown: string) => boolean;
+}
+
 function isEmptyParagraph(block: AnyBlock | undefined | null): boolean {
   if (!block) return false;
   if (block.type !== "paragraph") return false;
@@ -79,7 +85,10 @@ function getDocumentMarkdown(editor: AnyEditor): string {
  * an uninstall function that restores any previous handlers, mirroring the
  * idempotency pattern used by `installAIBridge`.
  */
-export function installEditorAgentBridge(editor: AnyEditor): () => void {
+export function installEditorAgentBridge(
+  editor: AnyEditor,
+  overrides: EditorAgentBridgeOverrides = {},
+): () => void {
   const bridge = window.editorBridge;
   if (!bridge) {
     console.warn("[agent] editorBridge not initialized; installEditorAgentBridge no-op");
@@ -90,9 +99,15 @@ export function installEditorAgentBridge(editor: AnyEditor): () => void {
   const previousInsert = bridge.aiInsertAtCursor;
   const previousReplace = bridge.aiReplaceSelection;
 
-  const getHandler = () => getDocumentMarkdown(editor);
-  const insertHandler = (markdown: string) => insertMarkdownAtCursor(editor, markdown);
-  const replaceHandler = (markdown: string) => replaceSelectionWithMarkdown(editor, markdown);
+  const getHandler = () => overrides.getDocumentMarkdown?.() ?? getDocumentMarkdown(editor);
+  const insertHandler = (markdown: string) => {
+    if (overrides.insertMarkdownAtCursor?.(markdown)) return;
+    insertMarkdownAtCursor(editor, markdown);
+  };
+  const replaceHandler = (markdown: string) => {
+    if (overrides.replaceSelectionWithMarkdown?.(markdown)) return;
+    replaceSelectionWithMarkdown(editor, markdown);
+  };
 
   bridge.aiGetDocumentMarkdown = getHandler;
   bridge.aiInsertAtCursor = insertHandler;

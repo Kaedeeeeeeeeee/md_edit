@@ -32,6 +32,10 @@ import {
 import { installSpaceTrigger } from "./ai/spaceTriggerPlugin";
 import { inlineFragmentToMarkdown } from "./ai/inlineMarkdown";
 import { installEditorAgentBridge } from "./agent/editorBridge";
+import {
+  SourceMarkdownEditor,
+  type SourceMarkdownEditorHandle,
+} from "./SourceMarkdownEditor";
 import "@blocknote/mantine/style.css";
 
 declare global {
@@ -489,33 +493,40 @@ export interface EmbeddedEditorProps {
   locale: AppLocale;
 }
 
+type EditorMode = "visual" | "source";
+
 export function EmbeddedEditor({ locale }: EmbeddedEditorProps) {
   const dictionary = useMemo(() => (locale === "zh" ? zh : en), [locale]);
   const editor = useCreateBlockNote({ schema, dictionary, uploadFile });
+  const sourceEditorRef = useRef<SourceMarkdownEditorHandle | null>(null);
+  const modeRef = useRef<EditorMode>("visual");
+  const previousModeRef = useRef<EditorMode>("visual");
   const lastEmittedRef = useRef<string>("");
+  const sourceMarkdownRef = useRef<string>("");
   const isApplyingExternalRef = useRef<boolean>(false);
+  const [mode, setMode] = useState<EditorMode>("visual");
+  const [sourceMarkdown, setSourceMarkdown] = useState("");
   const [aiContext, setAiContext] = useState<AISelectionContext | null>(null);
   // Menu-launched research popup. Boolean + top-center positioning, no anchor.
   const [researchOpen, setResearchOpen] = useState(false);
 
-  useEffect(() => {
-    window.editorBridge = {
-      loadMarkdown: (markdown: string) => {
-        try {
-          isApplyingExternalRef.current = true;
-          const { stripped, formulas } = extractMathBlocks(markdown);
-          const raw = editor.tryParseMarkdownToBlocks(stripped) as unknown as AnyBlock[];
-          const withMath = rebuildMathBlocks(raw, formulas);
-          const safe = withMath.length > 0 ? withMath : [{ type: "paragraph" }];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          editor.replaceBlocks(editor.document, safe as any);
-          lastEmittedRef.current = markdown;
-          // Auto-place the cursor on document open so the breathing halo
-          // invites typing without a mouse click. If the doc has content,
-          // park the caret in a new empty paragraph below the last block;
-          // if the doc is empty, drop straight into its single empty
-          // paragraph.  Wrapped in queueMicrotask so the block insertion
-          // observes the freshly applied document.
+  const setSourceMarkdownValue = useCallback((markdown: string) => {
+    sourceMarkdownRef.current = markdown;
+    setSourceMarkdown(markdown);
+  }, []);
+
+  const applyMarkdownToVisual = useCallback(
+    (markdown: string, options: { focus: boolean }) => {
+      try {
+        isApplyingExternalRef.current = true;
+        const { stripped, formulas } = extractMathBlocks(markdown);
+        const raw = editor.tryParseMarkdownToBlocks(stripped) as unknown as AnyBlock[];
+        const withMath = rebuildMathBlocks(raw, formulas);
+        const safe = withMath.length > 0 ? withMath : [{ type: "paragraph" }];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editor.replaceBlocks(editor.document, safe as any);
+        lastEmittedRef.current = markdown;
+        if (options.focus) {
           queueMicrotask(() => {
             try {
               placeCursorAtIdealStart(editor);
@@ -523,13 +534,43 @@ export function EmbeddedEditor({ locale }: EmbeddedEditorProps) {
               console.error("auto-focus on load failed:", err);
             }
           });
-        } catch (err) {
-          console.error("loadMarkdown failed:", err);
-        } finally {
-          queueMicrotask(() => {
-            isApplyingExternalRef.current = false;
-          });
         }
+      } catch (err) {
+        console.error("loadMarkdown failed:", err);
+      } finally {
+        queueMicrotask(() => {
+          isApplyingExternalRef.current = false;
+        });
+      }
+    },
+    [editor],
+  );
+
+  const handleSourceMarkdownChange = useCallback((markdown: string) => {
+    setSourceMarkdownValue(markdown);
+    if (markdown === lastEmittedRef.current) return;
+    lastEmittedRef.current = markdown;
+    postToHost({ type: "change", markdown });
+  }, [setSourceMarkdownValue]);
+
+  const switchMode = useCallback((nextMode: EditorMode) => {
+    if (nextMode === modeRef.current) return;
+    if (nextMode === "visual") {
+      const currentSource = sourceEditorRef.current?.getMarkdown();
+      if (currentSource !== undefined) {
+        handleSourceMarkdownChange(currentSource);
+      }
+      isApplyingExternalRef.current = true;
+    }
+    modeRef.current = nextMode;
+    setMode(nextMode);
+  }, [handleSourceMarkdownChange]);
+
+  useEffect(() => {
+    window.editorBridge = {
+      loadMarkdown: (markdown: string) => {
+        setSourceMarkdownValue(markdown);
+        applyMarkdownToVisual(markdown, { focus: modeRef.current === "visual" });
       },
       resolveUpload: (requestId: string, url: string) => {
         const pending = pendingUploads.get(requestId);
@@ -547,25 +588,67 @@ export function EmbeddedEditor({ locale }: EmbeddedEditorProps) {
         window.__setEditorLocale__?.(code);
       },
       runPageAction: (action: string) => {
-        queueMicrotask(() => {
+        if (modeRef.current === "source") {
+          switchMode("visual");
+        }
+        requestAnimationFrame(() => {
           const ctx = captureWholeDocContext(editor, action);
           if (ctx) setAiContext(ctx);
         });
       },
       openResearch: () => {
-        setResearchOpen(true);
+        if (modeRef.current === "source") {
+          switchMode("visual");
+        }
+        requestAnimationFrame(() => {
+          setResearchOpen(true);
+        });
       },
     };
     const uninstall = installAIBridge();
     const uninstallResearch = installResearchBridge();
-    const uninstallEditorAgent = installEditorAgentBridge(editor);
+    const uninstallEditorAgent = installEditorAgentBridge(editor, {
+      getDocumentMarkdown: () => {
+        if (modeRef.current === "source") {
+          return sourceEditorRef.current?.getMarkdown() ?? sourceMarkdownRef.current;
+        }
+        return lastEmittedRef.current;
+      },
+      insertMarkdownAtCursor: (markdown: string) => {
+        if (modeRef.current !== "source") return false;
+        sourceEditorRef.current?.insertMarkdownAtCursor(markdown);
+        return true;
+      },
+      replaceSelectionWithMarkdown: (markdown: string) => {
+        if (modeRef.current !== "source") return false;
+        sourceEditorRef.current?.replaceSelection(markdown);
+        return true;
+      },
+    });
     postToHost({ type: "ready" });
     return () => {
       uninstall();
       uninstallResearch();
       uninstallEditorAgent();
     };
-  }, [editor]);
+  }, [applyMarkdownToVisual, editor, setSourceMarkdownValue, switchMode]);
+
+  useEffect(() => {
+    modeRef.current = mode;
+    const previous = previousModeRef.current;
+    if (previous === mode) return;
+    previousModeRef.current = mode;
+    setAiContext(null);
+    setResearchOpen(false);
+
+    if (mode === "visual") {
+      applyMarkdownToVisual(sourceMarkdownRef.current, { focus: true });
+    } else {
+      queueMicrotask(() => {
+        sourceEditorRef.current?.focus();
+      });
+    }
+  }, [applyMarkdownToVisual, mode]);
 
   // Lock the editor while the AI popup is open so the user can't type or
   // click into the document and shift the captured `from`/`to` positions out
@@ -573,29 +656,27 @@ export function EmbeddedEditor({ locale }: EmbeddedEditorProps) {
   // accepts clicks and keyboard input.
   useEffect(() => {
     if (!editor) return;
-    if (aiContext) {
-      editor.isEditable = false;
-    } else {
-      editor.isEditable = true;
-    }
+    editor.isEditable = mode === "visual" && aiContext === null;
     return () => {
       editor.isEditable = true;
     };
-  }, [aiContext, editor]);
+  }, [aiContext, editor, mode]);
 
   const handleChange = useCallback(() => {
     if (isApplyingExternalRef.current) return;
+    if (modeRef.current !== "visual") return;
     try {
       const inlined = blocksWithMathInlined(editor.document as unknown as AnyBlock[]);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const md = editor.blocksToMarkdownLossy(inlined as any);
       if (md === lastEmittedRef.current) return;
       lastEmittedRef.current = md;
+      setSourceMarkdownValue(md);
       postToHost({ type: "change", markdown: md });
     } catch (err) {
       console.error("export markdown failed:", err);
     }
-  }, [editor]);
+  }, [editor, setSourceMarkdownValue]);
 
   const openAskAI = useCallback(() => {
     // Slash menu fires asynchronously; the `/` trigger character and any
@@ -669,34 +750,68 @@ export function EmbeddedEditor({ locale }: EmbeddedEditorProps) {
   }, [editor, openAskAI]);
 
   return (
-    <>
-      <CursorHalo editor={editor} />
-      <BlockNoteView
-        editor={editor}
-        onChange={handleChange}
-        slashMenu={false}
-        formattingToolbar={false}
+    <div className="editor-shell">
+      <div className="editor-mode-switcher" role="tablist" aria-label="Editor mode">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "visual"}
+          className="editor-mode-button"
+          onClick={() => switchMode("visual")}
+        >
+          Visual
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "source"}
+          className="editor-mode-button"
+          onClick={() => switchMode("source")}
+        >
+          Markdown
+        </button>
+      </div>
+      {mode === "visual" && <CursorHalo editor={editor} />}
+      <div
+        className={
+          mode === "visual" ? "visual-editor-pane" : "visual-editor-pane is-hidden"
+        }
+        aria-hidden={mode !== "visual"}
       >
-        <SuggestionMenuController
-          triggerCharacter="/"
-          getItems={async (query) =>
-            buildSlashItems(editor, query, locale, openAskAI)
-          }
-          suggestionMenuComponent={(props) => (
-            <LiquidGlassSlashMenu {...props} locale={locale} />
-          )}
+        <BlockNoteView
+          editor={editor}
+          onChange={handleChange}
+          slashMenu={false}
+          formattingToolbar={false}
+        >
+          <SuggestionMenuController
+            triggerCharacter="/"
+            getItems={async (query) =>
+              buildSlashItems(editor, query, locale, openAskAI)
+            }
+            suggestionMenuComponent={(props) => (
+              <LiquidGlassSlashMenu {...props} locale={locale} />
+            )}
+          />
+          <FormattingToolbarController
+            formattingToolbar={() => (
+              <LiquidGlassFormattingToolbar onAskAI={openAskAI} />
+            )}
+          />
+          <SideMenuController
+            sideMenu={(props) => (
+              <AILiquidGlassSideMenu {...props} onAskAI={openAskAIBlock} />
+            )}
+          />
+        </BlockNoteView>
+      </div>
+      {mode === "source" && (
+        <SourceMarkdownEditor
+          ref={sourceEditorRef}
+          value={sourceMarkdown}
+          onChange={handleSourceMarkdownChange}
         />
-        <FormattingToolbarController
-          formattingToolbar={() => (
-            <LiquidGlassFormattingToolbar onAskAI={openAskAI} />
-          )}
-        />
-        <SideMenuController
-          sideMenu={(props) => (
-            <AILiquidGlassSideMenu {...props} onAskAI={openAskAIBlock} />
-          )}
-        />
-      </BlockNoteView>
+      )}
       {aiContext && (
         <AIPromptPopup
           editor={editor}
@@ -710,6 +825,6 @@ export function EmbeddedEditor({ locale }: EmbeddedEditorProps) {
           onClose={() => setResearchOpen(false)}
         />
       )}
-    </>
+    </div>
   );
 }
