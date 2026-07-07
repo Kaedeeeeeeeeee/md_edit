@@ -36,6 +36,43 @@
         padding: 24px 0;
       }
 
+      /* ===== Editor text composition =====
+         Keep this purely CSS-level so ProseMirror still owns text nodes,
+         selections, IME composition, and undo history. */
+      .bn-editor {
+        -webkit-hyphens: auto;
+        hanging-punctuation: first allow-end last;
+        hyphens: auto;
+        line-break: strict;
+        overflow-wrap: break-word;
+        text-rendering: optimizeLegibility;
+        text-wrap: pretty;
+        word-break: normal;
+      }
+      .bn-editor:focus-within {
+        text-wrap: stable;
+      }
+      .bn-editor
+        .bn-block-content[data-content-type="paragraph"]
+        > .bn-inline-content,
+      .bn-editor .bn-block-content[data-content-type="quote"] > blockquote {
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: justify;
+        text-align-last: start;
+        text-justify: inter-character;
+      }
+      .bn-editor .bn-inline-content code,
+      .bn-editor [data-content-type="codeBlock"],
+      .bn-editor [data-content-type="table"],
+      .bn-editor .math-block {
+        line-break: auto;
+        text-align: start;
+        text-align-last: auto;
+        text-justify: auto;
+        text-wrap: stable;
+      }
+
       /* ===== iA Writer–style breathing caret =====
          The native browser caret is hidden entirely — our <CursorHalo>
          renders the cursor itself, which lets us keep a uniform height
