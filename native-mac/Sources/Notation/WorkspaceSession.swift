@@ -6,8 +6,105 @@ struct FileNode: Identifiable, Hashable {
     var id: String { url.path }
     let url: URL
     let name: String
+    let documentTitle: String?
     let isDirectory: Bool
     let children: [FileNode]
+}
+
+enum MarkdownDocumentTitle {
+    private static let maxScanBytes = 64 * 1024
+    private static let maxScanCharacters = 64 * 1024
+    private static let maxTitleCharacters = 180
+
+    static func title(fromFileAt url: URL) -> String? {
+        do {
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            let data = try handle.read(upToCount: maxScanBytes) ?? Data()
+            guard !data.isEmpty else { return nil }
+            let markdown = String(decoding: data, as: UTF8.self)
+            return title(fromMarkdown: markdown)
+        } catch {
+            return nil
+        }
+    }
+
+    static func title(fromMarkdown markdown: String) -> String? {
+        let prefix = String(markdown.prefix(maxScanCharacters))
+        for rawLine in prefix.components(separatedBy: .newlines) {
+            if let title = normalizedTitleLine(rawLine) {
+                return title
+            }
+        }
+        return nil
+    }
+
+    private static func normalizedTitleLine(_ rawLine: String) -> String? {
+        var title = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+
+        title = stripBlockquotePrefix(title)
+        title = stripHeadingPrefix(title)
+        title = stripListPrefix(title)
+        title = stripWrappingEmphasis(title)
+        title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !title.isEmpty else { return nil }
+        if title.count > maxTitleCharacters {
+            return String(title.prefix(maxTitleCharacters))
+        }
+        return title
+    }
+
+    private static func stripBlockquotePrefix(_ text: String) -> String {
+        var title = text
+        while title.hasPrefix(">") {
+            title = String(title.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return title
+    }
+
+    private static func stripHeadingPrefix(_ text: String) -> String {
+        let hashes = text.prefix { $0 == "#" }
+        guard (1...6).contains(hashes.count) else { return text }
+        let rest = text.dropFirst(hashes.count)
+        guard rest.first?.isWhitespace == true else { return text }
+        return String(rest)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(
+                of: #"\s+#+\s*$"#,
+                with: "",
+                options: .regularExpression
+            )
+    }
+
+    private static func stripListPrefix(_ text: String) -> String {
+        text
+            .replacingOccurrences(
+                of: #"^[-*+]\s+\[[ xX]\]\s+"#,
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"^[-*+]\s+"#,
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"^\d+[.)]\s+"#,
+                with: "",
+                options: .regularExpression
+            )
+    }
+
+    private static func stripWrappingEmphasis(_ text: String) -> String {
+        for token in ["**", "__", "*", "_", "`"] {
+            if text.hasPrefix(token), text.hasSuffix(token), text.count > token.count * 2 {
+                return String(text.dropFirst(token.count).dropLast(token.count))
+            }
+        }
+        return text
+    }
 }
 
 /// The active workspace: a folder on disk, its scanned Markdown tree,
@@ -312,6 +409,7 @@ final class WorkspaceSession {
                 nodes.append(FileNode(
                     url: entry,
                     name: entry.lastPathComponent,
+                    documentTitle: nil,
                     isDirectory: true,
                     children: children
                 ))
@@ -319,6 +417,7 @@ final class WorkspaceSession {
                 nodes.append(FileNode(
                     url: entry,
                     name: entry.lastPathComponent,
+                    documentTitle: MarkdownDocumentTitle.title(fromFileAt: entry),
                     isDirectory: false,
                     children: []
                 ))

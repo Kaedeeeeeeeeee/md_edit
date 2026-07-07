@@ -722,6 +722,12 @@ private struct NodeRow: View {
 
     private var displayName: String {
         if node.isDirectory { return node.name }
+        if isOpenDocument, let liveTitle = MarkdownDocumentTitle.title(fromMarkdown: store.document.currentMarkdown) {
+            return liveTitle
+        }
+        if let documentTitle = node.documentTitle {
+            return documentTitle
+        }
         return node.name.replacingOccurrences(
             of: "\\.(md|markdown|mdown|mkd)$",
             with: "",
