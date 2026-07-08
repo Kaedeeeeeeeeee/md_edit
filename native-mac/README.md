@@ -78,14 +78,20 @@ the embedded React app. Two messages:
 - `{ type: "ready" }` — editor mounted; coordinator flushes any pending markdown
 - `{ type: "change", markdown }` — debounced auto-save logic listens here
 
-## Distribution checklist (before App Store submission)
+## Distribution model
 
-- [ ] Replace placeholder app icon with real artwork (need 1024×1024 PNG)
-- [ ] Set `DEVELOPMENT_TEAM` in `project.yml` to your Apple Developer Team ID
-- [ ] Switch `CODE_SIGN_STYLE` to `Automatic` and let Xcode manage profiles
-- [ ] Notarize and validate via `xcodebuild archive` + `xcrun altool` / `notarytool`
-- [ ] Fill in App Store Connect metadata, screenshots, privacy declarations
-- [ ] (Optional) Add security-scoped bookmarks so picked folders persist across launches
+Notation ships as a paid Mac App Store app. There are no StoreKit products,
+subscriptions, trials, restore-purchase flows, or Pro entitlements in the
+runtime. After purchase, the editor and all AI entry points are available.
+AI still requires the user's own provider API key.
+
+Before submission:
+
+- [ ] Confirm App Store Connect pricing is set as a paid app, anchored near CNY ¥68
+- [ ] Do not create in-app purchase products
+- [ ] Rebuild `web/`, regenerate the Xcode project, then archive with Mac App Store signing
+- [ ] Confirm screenshots and metadata describe paid download + BYO API key clearly
+- [ ] Verify Release logs do not contain prompts, Markdown content, API keys, or full file paths
 
 ## Deferred features (future work)
 
@@ -95,4 +101,3 @@ the embedded React app. Two messages:
 - Multi-window / multi-tab
 - Find & Replace across the document
 - Search across folder
-- Folder picker persistence via security-scoped bookmarks

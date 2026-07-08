@@ -57,7 +57,8 @@ enum AgentChatStore {
         do {
             try data.write(to: url, options: .atomic)
         } catch {
-            DebugLog.write("[agent-chat] save failed for \(documentURL.lastPathComponent): \(error)")
+            let ns = error as NSError
+            DebugLog.write("[agent-chat] save failed for \(documentURL.lastPathComponent): \(ns.domain)#\(ns.code)")
         }
     }
 

@@ -129,7 +129,8 @@ struct EditorWebView: NSViewRepresentable {
             let js = "if (window.editorBridge?.openResearch) { window.editorBridge.openResearch(); }"
             webView.evaluateJavaScript(js) { _, error in
                 if let error {
-                    DebugLog.write("[research] openResearch evaluateJavaScript failed: \(error)")
+                    let ns = error as NSError
+                    DebugLog.write("[research] openResearch evaluateJavaScript failed: \(ns.domain)#\(ns.code)")
                 }
             }
         }
@@ -149,7 +150,8 @@ struct EditorWebView: NSViewRepresentable {
             let js = "if (window.editorBridge?.runPageAction) { window.editorBridge.runPageAction(\(encoded)); }"
             webView.evaluateJavaScript(js) { _, error in
                 if let error {
-                    DebugLog.write("[ai] runPageAction evaluateJavaScript failed: \(error)")
+                    let ns = error as NSError
+                    DebugLog.write("[ai] runPageAction evaluateJavaScript failed: \(ns.domain)#\(ns.code)")
                 }
             }
         }
@@ -365,18 +367,6 @@ struct EditorWebView: NSViewRepresentable {
             let before = (dict["contextBefore"] as? String) ?? ""
             let after = (dict["contextAfter"] as? String) ?? ""
 
-            // Pro gating: AI features require an unlocked entitlement.
-            // Send a structured error back through the existing stream-end
-            // channel so the floating AI popup closes gracefully, and post
-            // the paywall request so the main scene's sheet listener pops
-            // the upgrade UI.
-            guard EntitlementState.shared.isPro else {
-                DebugLog.write("[ai] request \(requestId) gated — not Pro")
-                NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
-                sendAIStreamEnd(requestId: requestId, result: .failure(.proRequired))
-                return
-            }
-
             // If another request already used this id (shouldn't happen — UUIDs
             // — but defend anyway), cancel the previous one so the dictionary
             // never leaks a Task.
@@ -427,12 +417,6 @@ struct EditorWebView: NSViewRepresentable {
             guard let requestId = dict["requestId"] as? String,
                   let prompt = dict["prompt"] as? String else {
                 DebugLog.write("[ai] image request missing requestId/prompt")
-                return
-            }
-            guard EntitlementState.shared.isPro else {
-                DebugLog.write("[ai] image request \(requestId) gated — not Pro")
-                NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
-                sendImageResponse(requestId: requestId, result: .failure(.proRequired))
                 return
             }
             Task { [weak self] in
@@ -486,12 +470,6 @@ struct EditorWebView: NSViewRepresentable {
                 DebugLog.write("[research] missing requestId/query")
                 return
             }
-            guard EntitlementState.shared.isPro else {
-                DebugLog.write("[research] \(requestId) gated — not Pro")
-                NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
-                sendResearchResponse(requestId: requestId, result: .failure(.proRequired))
-                return
-            }
             let maxSearches = (dict["maxSearches"] as? Int) ?? 5
             Task { [weak self] in
                 let result = await AIService.shared.runResearch(query: query, maxSearches: maxSearches)
@@ -532,7 +510,8 @@ struct EditorWebView: NSViewRepresentable {
             let js = "if (window.editorBridge?.aiResearchResponse) { window.editorBridge.aiResearchResponse(\(idLiteral), \(payloadStr)); }"
             webView.evaluateJavaScript(js) { _, error in
                 if let error {
-                    DebugLog.write("[research] evaluateJavaScript aiResearchResponse failed: \(error)")
+                    let ns = error as NSError
+                    DebugLog.write("[research] evaluateJavaScript aiResearchResponse failed: \(ns.domain)#\(ns.code)")
                 }
             }
         }
@@ -569,7 +548,8 @@ struct EditorWebView: NSViewRepresentable {
             let js = "if (window.editorBridge?.aiImageResponse) { window.editorBridge.aiImageResponse(\(idLiteral), \(payloadStr)); }"
             webView.evaluateJavaScript(js) { _, error in
                 if let error {
-                    DebugLog.write("[ai] evaluateJavaScript aiImageResponse failed: \(error)")
+                    let ns = error as NSError
+                    DebugLog.write("[ai] evaluateJavaScript aiImageResponse failed: \(ns.domain)#\(ns.code)")
                 }
             }
         }
@@ -596,7 +576,8 @@ struct EditorWebView: NSViewRepresentable {
             let js = "if (window.editorBridge?.aiStreamChunk) { window.editorBridge.aiStreamChunk(\(idLiteral), \(deltaLiteral)); }"
             webView.evaluateJavaScript(js) { _, error in
                 if let error {
-                    DebugLog.write("[ai] evaluateJavaScript aiStreamChunk failed: \(error)")
+                    let ns = error as NSError
+                    DebugLog.write("[ai] evaluateJavaScript aiStreamChunk failed: \(ns.domain)#\(ns.code)")
                 }
             }
         }
@@ -634,7 +615,8 @@ struct EditorWebView: NSViewRepresentable {
             let js = "if (window.editorBridge?.aiStreamEnd) { window.editorBridge.aiStreamEnd(\(idLiteral), \(payloadStr)); }"
             webView.evaluateJavaScript(js) { _, error in
                 if let error {
-                    DebugLog.write("[ai] evaluateJavaScript aiStreamEnd failed: \(error)")
+                    let ns = error as NSError
+                    DebugLog.write("[ai] evaluateJavaScript aiStreamEnd failed: \(ns.domain)#\(ns.code)")
                 }
             }
         }
@@ -654,7 +636,7 @@ struct EditorWebView: NSViewRepresentable {
             withError error: any Error
         ) {
             let ns = error as NSError
-            DebugLog.write("[nav] provisional FAILED: \(ns.domain)#\(ns.code) \(error.localizedDescription)")
+            DebugLog.write("[nav] provisional FAILED: \(ns.domain)#\(ns.code)")
         }
 
         func webView(
@@ -663,7 +645,7 @@ struct EditorWebView: NSViewRepresentable {
             withError error: any Error
         ) {
             let ns = error as NSError
-            DebugLog.write("[nav] FAILED: \(ns.domain)#\(ns.code) \(error.localizedDescription)")
+            DebugLog.write("[nav] FAILED: \(ns.domain)#\(ns.code)")
         }
 
         private func sendLoad(_ markdown: String) {
@@ -681,7 +663,8 @@ struct EditorWebView: NSViewRepresentable {
             let js = "if (window.editorBridge) { window.editorBridge.loadMarkdown(\(encoded)); }"
             webView.evaluateJavaScript(js) { _, error in
                 if let error {
-                    print("evaluateJavaScript loadMarkdown failed:", error)
+                    let ns = error as NSError
+                    DebugLog.write("[editor] loadMarkdown evaluateJavaScript failed: \(ns.domain)#\(ns.code)")
                 }
             }
         }
@@ -710,7 +693,8 @@ struct EditorWebView: NSViewRepresentable {
             let js = "if (window.editorBridge?.setLocale) { window.editorBridge.setLocale(\(encoded)); }"
             webView.evaluateJavaScript(js) { _, error in
                 if let error {
-                    print("evaluateJavaScript setLocale failed:", error)
+                    let ns = error as NSError
+                    DebugLog.write("[editor] setLocale evaluateJavaScript failed: \(ns.domain)#\(ns.code)")
                 }
             }
         }

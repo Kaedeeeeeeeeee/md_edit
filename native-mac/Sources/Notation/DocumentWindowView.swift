@@ -5,11 +5,10 @@ import AppKit
 /// editor — no sidebar, no file tree — for one file living outside the
 /// workspace.  Typora/TextEdit feel: opens fast, really closes.
 ///
-/// Environment: receives the app-level `AppModel` / `PaywallStore` /
-/// `EntitlementState` from the scene, but creates its own
-/// `AgentChatController` + `EditorJSBridge` pair — the bridge must point
-/// at THIS window's WKWebView, and chat history is keyed per document
-/// URL so nothing is shared with the main window anyway.
+/// Environment: receives the app-level `AppModel` from the scene, but
+/// creates its own `AgentChatController` + `EditorJSBridge` pair — the
+/// bridge must point at THIS window's WKWebView, and chat history is keyed
+/// per document URL so nothing is shared with the main window anyway.
 struct DocumentWindowView: View {
     let fileURL: URL
     let session: DocumentSession
@@ -102,13 +101,10 @@ enum DocumentWindowHost {
     static func makeWindow(
         fileURL: URL,
         session: DocumentSession,
-        store: AppModel,
-        paywall: PaywallStore
+        store: AppModel
     ) -> NSWindow {
         let root = DocumentWindowView(fileURL: fileURL, session: session)
             .environment(store)
-            .environment(paywall)
-            .environment(EntitlementState.shared)
 
         let hosting = NSHostingController(rootView: root)
         let window = NSWindow(contentViewController: hosting)

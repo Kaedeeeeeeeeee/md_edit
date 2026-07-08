@@ -129,14 +129,6 @@ final class AgentChatController {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isStreaming else { return }
 
-        // Pro gating. We check before appending bubbles so a non-Pro user
-        // tapping Send doesn't see their message land in the chat with no
-        // response — the paywall sheet appearing is the clear signal.
-        guard EntitlementState.shared.isPro else {
-            NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
-            return
-        }
-
         errorMessage = nil
 
         let userBubble = Message(id: UUID().uuidString, role: .user, content: text)

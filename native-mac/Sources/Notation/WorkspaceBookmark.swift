@@ -20,7 +20,7 @@ enum WorkspaceBookmark {
             pushRecent(data)
             recordAccess(url)
         } catch {
-            print("WorkspaceBookmark.save failed:", error)
+            DebugLog.write("[bookmark] workspace save failed")
         }
     }
 

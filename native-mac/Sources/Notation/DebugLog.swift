@@ -21,10 +21,19 @@ enum DebugLog {
     /// the log live without granting Full Disk Access.
     private static let mirrorToStdout =
         ProcessInfo.processInfo.environment["NOTATION_STDOUT_LOG"] != nil
+    private static let enableReleaseFileLog =
+        ProcessInfo.processInfo.environment["NOTATION_RELEASE_LOG"] != nil
 
     static func write(_ message: String) {
+        #if DEBUG
+        let logMessage = message
+        #else
+        guard enableReleaseFileLog || mirrorToStdout else { return }
+        let logMessage = redactSensitiveReleaseText(message)
+        #endif
+
         let timestamp = ISO8601DateFormatter().string(from: Date())
-        let line = "\(timestamp) \(message)\n"
+        let line = "\(timestamp) \(logMessage)\n"
         guard let data = line.data(using: .utf8) else { return }
         lock.lock()
         defer { lock.unlock() }
@@ -37,7 +46,7 @@ enum DebugLog {
         if FileManager.default.fileExists(atPath: path) {
             if let handle = try? FileHandle(forWritingTo: URL(fileURLWithPath: path)) {
                 defer { try? handle.close() }
-                try? handle.seekToEnd()
+                _ = try? handle.seekToEnd()
                 try? handle.write(contentsOf: data)
             }
         } else {
@@ -48,4 +57,21 @@ enum DebugLog {
     static func reset() {
         try? FileManager.default.removeItem(atPath: path)
     }
+
+    #if !DEBUG
+    private static func redactSensitiveReleaseText(_ message: String) -> String {
+        var redacted = message
+        redacted = redacted.replacingOccurrences(of: NSHomeDirectory(), with: "<home>")
+        if let regex = try? NSRegularExpression(pattern: #"/Users/[^\s,)"]+"#) {
+            let range = NSRange(redacted.startIndex..., in: redacted)
+            redacted = regex.stringByReplacingMatches(
+                in: redacted,
+                options: [],
+                range: range,
+                withTemplate: "<path>"
+            )
+        }
+        return redacted
+    }
+    #endif
 }

@@ -61,14 +61,12 @@ struct SettingsView: View {
     @AppStorage("aiAnthropicModel") private var aiAnthropicModel: String = ""
     @AppStorage("aiOpenAIModel") private var aiOpenAIModel: String = ""
     @AppStorage("aiOpenAIBaseURL") private var aiOpenAIBaseURL: String = ""
-    @Environment(EntitlementState.self) private var entitlement
     @State private var isDefaultHandler = DefaultMarkdownHandler.isDefault()
     /// Tracks whether the user has actually toggled the picker this session,
     /// so the initial `.onAppear`-driven read doesn't trip the restart prompt.
     @State private var initialLanguage: LanguagePreference?
     @State private var aiKeyDraft: String = ""
     @State private var aiKeyStatus: String = ""
-    @State private var aiPendingProviderAfterDisclosure: AIProvider?
 
     private var aiProvider: AIProvider {
         AIProvider(rawValue: aiProviderRaw) ?? .anthropic
@@ -105,6 +103,23 @@ struct SettingsView: View {
                     Button("Clear Recent Files") {
                         RecentFiles.shared.clear()
                     }
+                }
+
+                Section {
+                    Link(
+                        "Privacy Policy",
+                        destination: URL(string: "https://kaedeeeeeeeeee.github.io/md_edit/privacy.html")!
+                    )
+                    Link(
+                        "Support",
+                        destination: URL(string: "https://github.com/Kaedeeeeeeeeee/md_edit/issues")!
+                    )
+                } header: {
+                    Text("Legal & Support")
+                } footer: {
+                    Text("Support is handled through the public GitHub Issues page.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section {
@@ -162,56 +177,10 @@ struct SettingsView: View {
             .tabItem { Label("Appearance", systemImage: "paintpalette") }
 
             Form {
-                // Pro gating callout: appears above all other AI controls so
-                // users immediately know AI features require an upgrade.
-                // API Key entry is intentionally left enabled so preparation
-                // is possible without Pro — the gating happens at the call
-                // sites (EditorWebView, AgentChatController), not here.
-                if !entitlement.isPro {
-                    Section {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Image(systemName: "lock.fill")
-                                    .foregroundStyle(Color.accentColor)
-                                Text("AI features require Notation Pro upgrade")
-                                    .font(.headline)
-                                Spacer()
-                            }
-                            Text("Unlock Ask AI, Research, and Image Generation. App is free; AI features available via monthly, yearly, or lifetime purchase.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            HStack {
-                                Spacer()
-                                Button("Upgrade…") {
-                                    NotificationCenter.default.post(name: .proPaywallRequested, object: nil)
-                                }
-                                .buttonStyle(.borderedProminent)
-                            }
-                        }
-                        .padding(8)
-                    }
-                } else {
-                    // Already Pro — show a small status row instead.
-                    Section {
-                        HStack {
-                            Image(systemName: "checkmark.seal.fill")
-                                .foregroundStyle(.green)
-                            Text("Upgraded to Notation Pro")
-                            if let tier = entitlement.activeTier {
-                                Text("· \(tier.displayName)")
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                        }
-                    }
-                }
-
                 if !aiDisclosureAcked {
                     // Up-front data-handling disclosure shown the first time
-                    // the AI tab is opened. Replaces the older NSAlert that
-                    // fired only at key-save time — App Store reviewers want
-                    // the user informed before they invest effort.
+                    // the AI tab is opened so users understand the BYO-key
+                    // provider boundary before configuring a model.
                     Section {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Sending text to AI providers")

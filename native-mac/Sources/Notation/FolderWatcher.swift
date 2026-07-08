@@ -67,7 +67,7 @@ final class FolderWatcher {
             /* latency: */ 0.3,
             flags
         ) else {
-            print("FSEventStreamCreate failed for", url.path)
+            DebugLog.write("[watch] FSEventStreamCreate failed")
             return
         }
 

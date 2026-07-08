@@ -54,7 +54,8 @@ final class RecentFiles {
         do {
             blob = try SecurityScopedBookmark.makeBlob(url: url)
         } catch {
-            DebugLog.write("[recents] bookmark failed for \(url.path): \(error.localizedDescription)")
+            let ns = error as NSError
+            DebugLog.write("[recents] bookmark failed for \(url.lastPathComponent): \(ns.domain)#\(ns.code)")
             return
         }
 

@@ -24,7 +24,8 @@ final class EditorJSBridge {
         return await withCheckedContinuation { continuation in
             webView.evaluateJavaScript(js) { value, error in
                 if let error {
-                    DebugLog.write("[agent] aiGetDocumentMarkdown failed: \(error)")
+                    let ns = error as NSError
+                    DebugLog.write("[agent] aiGetDocumentMarkdown failed: \(ns.domain)#\(ns.code)")
                     continuation.resume(returning: "")
                     return
                 }
@@ -62,7 +63,8 @@ final class EditorJSBridge {
         let js = "if (window.editorBridge && window.editorBridge.\(method)) { window.editorBridge.\(method)(\(encoded)); }"
         webView.evaluateJavaScript(js) { _, error in
             if let error {
-                DebugLog.write("[agent] \(method) evaluateJavaScript failed: \(error)")
+                let ns = error as NSError
+                DebugLog.write("[agent] \(method) evaluateJavaScript failed: \(ns.domain)#\(ns.code)")
             }
         }
     }

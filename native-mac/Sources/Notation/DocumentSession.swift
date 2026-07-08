@@ -170,7 +170,8 @@ final class DocumentSession {
             onFileWritten(finalURL)
             DebugLog.write("[autosave] created untitled \(finalURL.lastPathComponent)")
         } catch {
-            DebugLog.write("[autosave] untitled write failed: \(error.localizedDescription)")
+            let ns = error as NSError
+            DebugLog.write("[autosave] untitled write failed: \(ns.domain)#\(ns.code)")
         }
     }
 
@@ -226,7 +227,8 @@ final class DocumentSession {
             loadEpoch += 1
             RecentFiles.shared.push(url)
         } catch {
-            DebugLog.write("[loadFile] FAILED \(error.localizedDescription)")
+            let ns = error as NSError
+            DebugLog.write("[loadFile] FAILED \(ns.domain)#\(ns.code)")
             AppAlerts.present(String(localized: "Failed to open file"), error.localizedDescription)
         }
     }
@@ -298,7 +300,8 @@ final class DocumentSession {
             DebugLog.write("[title-sync] renamed \(url.lastPathComponent) -> \(dest.lastPathComponent)")
             return dest
         } catch {
-            DebugLog.write("[title-sync] rename FAILED \(url.lastPathComponent): \(error.localizedDescription)")
+            let ns = error as NSError
+            DebugLog.write("[title-sync] rename FAILED \(url.lastPathComponent): \(ns.domain)#\(ns.code)")
             return url
         }
     }

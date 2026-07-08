@@ -162,7 +162,8 @@ struct OnboardingView: View {
             adopt(target)
         } catch {
             lastError = "Couldn't create vault folder: \(error.localizedDescription)"
-            DebugLog.write("[onboard] container vault mkdir failed: \(error.localizedDescription)")
+            let ns = error as NSError
+            DebugLog.write("[onboard] container vault mkdir failed: \(ns.domain)#\(ns.code)")
         }
     }
 
@@ -199,14 +200,15 @@ struct OnboardingView: View {
             adopt(target)
         } catch {
             lastError = "Couldn't create folder: \(error.localizedDescription)"
-            DebugLog.write("[onboard] iCloud mkdir failed: \(error.localizedDescription)")
+            let ns = error as NSError
+            DebugLog.write("[onboard] iCloud mkdir failed: \(ns.domain)#\(ns.code)")
         }
     }
 
     // MARK: - Adopt
 
     private func adopt(_ url: URL) {
-        DebugLog.write("[onboard] adopting workspace: \(url.path)")
+        DebugLog.write("[onboard] adopting workspace: \(url.lastPathComponent)")
         store.adoptWorkspaceFolder(url)
         UserDefaults.standard.set(true, forKey: "didShowFirstLaunchOnboarding")
     }

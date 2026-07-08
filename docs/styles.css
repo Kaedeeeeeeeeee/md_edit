@@ -715,6 +715,10 @@ a { color: inherit; text-decoration: none; }
   max-width: 900px;
   margin: 0 auto;
 }
+.pricing-tiers.single {
+  grid-template-columns: minmax(0, 420px);
+  justify-content: center;
+}
 .tier {
   position: relative;
   background: var(--bg-card);

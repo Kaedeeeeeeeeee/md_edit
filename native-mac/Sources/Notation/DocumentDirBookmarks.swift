@@ -94,10 +94,11 @@ enum DocumentDirBookmarks {
             }
             current.insert(blob, at: 0)
             UserDefaults.standard.set(current, forKey: storageKey)
-            DebugLog.write("[grant] saved for \(url.path)")
+            DebugLog.write("[grant] saved for \(url.lastPathComponent)")
             return SecurityScopedBookmark.resolve(blob)
         } catch {
-            DebugLog.write("[grant] bookmark failed: \(error.localizedDescription)")
+            let ns = error as NSError
+            DebugLog.write("[grant] bookmark failed: \(ns.domain)#\(ns.code)")
             return nil
         }
     }

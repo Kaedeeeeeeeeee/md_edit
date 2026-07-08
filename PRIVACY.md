@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date:** 2026-05-14
+**Effective date:** 2026-07-08
 
 ## Who we are
 
@@ -9,10 +9,10 @@ maintained by the project author ([Kaedeeeeeeeeee](https://github.com/Kaedeeeeee
 on GitHub). The fastest way to reach us is to file an issue at
 [our GitHub repo](https://github.com/Kaedeeeeeeeeee/md_edit/issues).
 
-## What we collect
+## What Notation collects
 
-Nothing. The app has no user accounts, doesn't phone home, and we don't run
-any servers that receive your data.
+Notation itself collects nothing. The app has no user accounts, doesn't
+phone home, and we don't run any servers that receive your data.
 
 ## Your files
 
@@ -27,7 +27,7 @@ launch; those bookmarks are stored locally and never transmitted anywhere.
 
 This is the most important section, so we'll be specific.
 
-When you opt to use **Ask AI**, **Research**, or **Image Generation**, the
+When you actively use **Ask AI**, **Research**, or **Image Generation**, the
 text you've selected plus the instruction you typed — and only those, not
 your full document, not any other files — are sent over HTTPS, directly
 from your device, to the AI provider you configured in *Settings → AI*.
@@ -46,25 +46,16 @@ It is never transmitted to us. We have no way to see it.
 
 If you don't use AI features, no network calls related to AI happen at all.
 
-## Purchases & subscriptions
+## App purchase
 
-Notation is free to download from the Mac App Store. Some AI features
-(Ask AI, Research, Image Generation) require upgrading to Notation Pro
-via one of three in-app purchases: monthly subscription, yearly
-subscription, or one-time lifetime purchase.
+Notation is a paid Mac App Store download. After purchase, the editor and
+all AI entry points are available in the app. There are no subscriptions,
+in-app purchases, trials, accounts, or upgrade entitlements in Notation.
 
-All transactions go through Apple's StoreKit. We never receive your payment
-information — not your card number, not your billing address, not your name.
-Apple handles the entire transaction. We only receive a verified signal that
-an entitlement is active or inactive for the current device's Apple ID.
-
-Locally, we store a single derived flag ("is Pro?") plus the tier name
-(monthly / yearly / lifetime). This is kept in UserDefaults on your device
-and never transmitted anywhere.
-
-To manage or cancel a subscription, visit Apple's standard subscription
-page at <https://apps.apple.com/account/subscriptions>. Subscription
-renewals and refunds are handled by Apple, not us.
+Apple handles payment, refunds, taxes, invoices, and purchase history for
+the Mac App Store transaction. We do not receive your card number, billing
+address, legal name, or purchase history, and the app does not read or cache
+StoreKit transaction entitlements.
 
 ## Analytics, telemetry, ads, tracking
 

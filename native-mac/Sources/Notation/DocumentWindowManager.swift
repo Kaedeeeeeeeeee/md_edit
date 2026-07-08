@@ -46,8 +46,8 @@ final class DocumentWindowManager {
 
     /// Builds the `NSWindow` (SwiftUI content + environment) for a prepared
     /// session.  Injected by `NotationApp` at startup because window
-    /// construction needs the app-level environment objects (AppModel,
-    /// PaywallStore) that live on the App struct.
+    /// construction needs the app-level environment objects that live on the
+    /// App struct.
     var makeWindow: ((URL, DocumentSession) -> NSWindow)?
 
     /// Open a document window for `url`, or focus the existing one.

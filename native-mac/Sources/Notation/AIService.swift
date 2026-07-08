@@ -64,40 +64,38 @@ enum AIError: Error {
     case missingKey
     case http(Int, String)
     case decode(String)
+    case unsupported(String)
     case network(Error)
     case cancelled
-    /// User is not on Notation Pro. AIService never returns this directly;
-    /// it's synthesized by the gating layer (EditorWebView /
-    /// AgentChatController) so the JS bridge / chat UI can route errors
-    /// through the same channel.
-    case proRequired
 
     var bridgeCode: String {
         switch self {
         case .missingKey: return "missing-key"
         case .http(let status, _): return "http-\(status)"
         case .decode: return "decode-error"
+        case .unsupported: return "unsupported-provider"
         case .network: return "network-error"
         case .cancelled: return "cancelled"
-        case .proRequired: return "pro-required"
         }
     }
 
     var userMessage: String {
         switch self {
         case .missingKey:
-            return "No API key set. Open Settings → AI."
-        case .http(let status, let body):
-            let snippet = body.prefix(160)
-            return "Server error (\(status)). \(snippet)"
+            return "API key required. Open Settings → AI and add a key for the selected provider."
+        case .http(let status, _):
+            if status == 401 || status == 403 {
+                return "Authentication failed (\(status)). Check the API key for the selected provider."
+            }
+            return "Provider request failed (\(status)). Check the selected provider and try again."
         case .decode(let detail):
             return "Could not parse the AI response. \(detail)"
+        case .unsupported(let detail):
+            return detail
         case .network(let err):
             return "Network error: \(err.localizedDescription)"
         case .cancelled:
             return "Cancelled."
-        case .proRequired:
-            return String(localized: "AI features require Notation Pro.")
         }
     }
 }
@@ -361,7 +359,8 @@ private func saveImageToSandbox(data: Data, ext: String) -> URL? {
         try data.write(to: url, options: .atomic)
         return url
     } catch {
-        DebugLog.write("[ai] saveImageToSandbox failed: \(error.localizedDescription)")
+        let ns = error as NSError
+        DebugLog.write("[ai] saveImageToSandbox failed: \(ns.domain)#\(ns.code)")
         return nil
     }
 }
@@ -563,7 +562,7 @@ actor AIService {
         let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.anthropic.rawValue
         let provider = AIProvider(rawValue: providerRaw) ?? .anthropic
         guard provider == .anthropic else {
-            return .failure(.decode("Research Mode currently requires Anthropic Claude. Switch provider in Settings → AI."))
+            return .failure(.unsupported("Research requires Anthropic Claude because it uses Anthropic's web search tool. Switch provider in Settings → AI."))
         }
         guard let apiKey = KeychainStore.load(account: provider.keychainAccount),
               !apiKey.isEmpty else {
@@ -571,7 +570,7 @@ actor AIService {
             return .failure(.missingKey)
         }
         let model = resolvedModel(for: provider)
-        DebugLog.write("[research] starting query=\(query.prefix(80)) maxSearches=\(maxSearches) model=\(model)")
+        DebugLog.write("[research] starting maxSearches=\(maxSearches) model=\(model)")
 
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
         request.httpMethod = "POST"
@@ -616,7 +615,7 @@ actor AIService {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard status == 200 else {
                 let bodyStr = String(data: data, encoding: .utf8) ?? ""
-                DebugLog.write("[research] HTTP \(status): \(bodyStr.prefix(200))")
+                DebugLog.write("[research] HTTP \(status) bodyLen=\(bodyStr.count)")
                 return .failure(.http(status, bodyStr))
             }
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -659,7 +658,7 @@ actor AIService {
         let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.anthropic.rawValue
         let provider = AIProvider(rawValue: providerRaw) ?? .anthropic
         guard provider == .openai else {
-            return .failure(.decode("Image generation requires the OpenAI provider. Set it in Settings → AI."))
+            return .failure(.unsupported("Image generation requires the OpenAI provider. Switch provider in Settings → AI."))
         }
         guard let apiKey = KeychainStore.load(account: provider.keychainAccount),
               !apiKey.isEmpty else {
@@ -667,7 +666,7 @@ actor AIService {
             return .failure(.missingKey)
         }
         let client = OpenAIClient(baseURL: resolvedOpenAIBaseURL(), model: resolvedModel(for: provider))
-        DebugLog.write("[ai] image gen prompt=\(prompt.prefix(80))")
+        DebugLog.write("[ai] image gen starting")
         let result = await client.generateImage(prompt: prompt, apiKey: apiKey)
         switch result {
         case .success(let url): DebugLog.write("[ai] image success path=\(url.lastPathComponent)")

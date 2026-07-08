@@ -1,7 +1,8 @@
 # Notation
 
 A Notion-style block-level Markdown editor for macOS. Real `.md` files on
-disk, not a private database. **Coming to the Mac App Store.**
+disk, not a private database. **Coming to the Mac App Store as a paid,
+one-time purchase.**
 
 → Landing page: <https://kaedeeeeeeeeee.github.io/md_edit/>
 
@@ -11,7 +12,7 @@ disk, not a private database. **Coming to the Mac App Store.**
 - Workspace-first sidebar like an IDE; single-file open as fallback
 - Swift + SwiftUI shell with an embedded BlockNote editor in WKWebView
 - Real macOS 26 Liquid Glass — public APIs only, App Store eligible
-- Optional AI features (Ask AI, Research, Image Generation) — bring your own API key
+- AI features included after download (Ask AI, Research, Image Generation) — bring your own API key
 
 ## Build
 

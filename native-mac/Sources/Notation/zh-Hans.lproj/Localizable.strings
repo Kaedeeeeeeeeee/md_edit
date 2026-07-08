@@ -72,6 +72,11 @@
 "Recent Files" = "最近的文件";
 "Clear Recent Files" = "清除最近的文件";
 
+"Legal & Support" = "法律与支持";
+"Privacy Policy" = "隐私政策";
+"Support" = "支持";
+"Support is handled through the public GitHub Issues page." = "支持请求通过公开的 GitHub Issues 页面处理。";
+
 "File Associations" = "文件关联";
 "Notation is the default app for .md files." = "Notation 是 .md 文件的默认应用。";
 "Another app is currently the default for .md files." = "目前 .md 文件的默认应用是其他程序。";
@@ -119,69 +124,6 @@
 
 "Do you want to save before closing?" = "关闭前是否要保存？";
 "Don’t Save" = "不保存";
-
-
-// MARK: - Paywall/EntitlementState.swift — tier display names
-
-"Lifetime" = "终身买断";
-"Yearly" = "年订阅";
-"Monthly" = "月订阅";
-
-
-// MARK: - Paywall/PaywallView.swift
-
-"Upgrade Notation Pro" = "升级 Notation Pro";
-"Unlock Ask AI, Research, Image Generation, and all AI features." = "解锁 Ask AI、Research、Image Generation 等全部 AI 功能。";
-"Best Value" = "最划算";
-"Buy Once" = "买断";
-"Subscribe" = "订阅";
-"Unlock all AI features" = "解锁全部 AI 功能";
-"Cancel anytime on App Store" = "随时可在 App Store 取消";
-"About ¥4.0/month" = "约合每月 ¥4.0";
-"86% cheaper than monthly" = "比月订便宜 86%";
-"All future versions free" = "所有未来版本免费";
-"Pays for itself in ~1.5 years" = "约 1.5 年订阅就回本";
-"/month" = "/月";
-"/year" = "/年";
-" once" = " 一次";
-"Loading products…" = "正在加载商品…";
-"Failed to load products" = "商品加载失败";
-"Check your connection and try again." = "请检查网络连接，然后重试。";
-"Retry" = "重试";
-"Upgrade successful" = "升级成功";
-"All AI features unlocked." = "所有 AI 功能已解锁。";
-"Subscriptions renew 24 hours before expiry. Cancel anytime in App Store Settings. Lifetime purchase does not auto-renew." = "订阅在到期前 24 小时内自动续费。可随时在 App Store 设置中取消，终身买断不会扣费。";
-"Terms (EULA)" = "用户协议（EULA）";
-"Privacy Policy" = "隐私政策";
-"Restore Purchases" = "恢复购买";
-"Try Now, Ask Later" = "先用着，下次再说";
-
-
-// MARK: - Paywall/PaywallStore.swift — purchase error messages
-
-"Product not found. Please try again later." = "找不到对应商品，请稍后再试。";
-"Cancelled." = "已取消。";
-"Purchase pending approval (e.g., parental controls). Will complete automatically." = "购买待审批（如家长控制等场景）。完成后会自动到账。";
-"Transaction verification failed. Please try again." = "交易验证失败，请稍后重试。";
-
-
-// MARK: - NotationApp.swift — menu items
-
-"Upgrade Notation…" = "升级 Notation…";
-"Manage Subscription…" = "管理订阅…";
-
-
-// MARK: - Settings.swift — AI gating and upgrade prompts
-
-"AI features require Notation Pro upgrade" = "AI 功能需要升级到 Notation Pro";
-"Unlock Ask AI, Research, and Image Generation. App is free; AI features available via monthly, yearly, or lifetime purchase." = "解锁 Ask AI、Research、Image Generation。下载免费，AI 功能可选月订、年订或终身买断。";
-"Upgrade…" = "升级…";
-"Upgraded to Notation Pro" = "已升级到 Notation Pro";
-
-
-// MARK: - AIService.swift — error message
-
-"AI features require Notation Pro." = "AI 功能需要升级到 Notation Pro。";
 
 
 // MARK: - DocumentStore.swift — file size guard

@@ -61,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        DebugLog.write("[appdelegate] openFile \(filename)")
+        DebugLog.write("[appdelegate] openFile \((filename as NSString).lastPathComponent)")
         openDocument(at: URL(fileURLWithPath: filename))
         return true
     }
@@ -144,10 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Finder open-with), just post `.openMainRequested` — the SwiftUI
     /// `Window` scene's `.handlesExternalEvents(matching: ["*"])`
     /// declaration causes it to materialise on its own with the full
-    /// `.environment()` chain (AgentChatController, PaywallStore,
-    /// EntitlementState, AppModel).  An AppKit-constructed window
-    /// via `NSHostingView` would only have AppModel, and ContentView
-    /// would crash reading the other environment values it needs.
+    /// `.environment()` chain. An AppKit-constructed window via
+    /// `NSHostingView` would miss that chain.
     func showMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
         if let mainWindow = mainWindow ?? findWindow(identifier: .notationMainWindow) {

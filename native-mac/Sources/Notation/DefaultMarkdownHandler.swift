@@ -53,7 +53,8 @@ enum DefaultMarkdownHandler {
                 )
                 DebugLog.write("[default-handler] set as default for .md")
             } catch {
-                DebugLog.write("[default-handler] failed: \(error.localizedDescription)")
+                let ns = error as NSError
+                DebugLog.write("[default-handler] failed: \(ns.domain)#\(ns.code)")
             }
         }
     }

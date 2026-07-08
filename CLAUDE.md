@@ -86,7 +86,6 @@ md_edit/                              # 项目根（git remote: Kaedeeeeeeeeee/m
     │   ├── AIService.swift               # Anthropic + OpenAI 流式客户端（BYO key）
     │   ├── KeychainStore.swift           # API key 存储（macOS Keychain）
     │   ├── Agent/                        # AI 聊天 overlay
-    │   ├── Paywall/                      # Pro 订阅 / StoreKit
     │   ├── DebugLog.swift                # 文件日志（绕开 unified log 过滤）
     │   ├── PrivacyInfo.xcprivacy         # Apple 隐私清单（App Store 必需）
     │   └── Notation.entitlements         # sandbox + user-selected files + network.client
@@ -146,7 +145,7 @@ DocumentSession 上的 `loadEpoch: Int` 单调递增，编辑器在 `updateNSVie
 ### 10. 文档小窗 + 按包含关系路由（B2 阶段 2，2026-07）
 
 `AppModel.openDocument(at:heldScope:)` 是"打开一个 md"的唯一入口（Finder 双击 / Open File… / Recents 全走它）：workspace 内 → 主窗 + 侧栏展开选中；workspace 外 → 独立文档小窗（**AppKit `NSWindow` + `NSHostingController`**，由 `DocumentWindowManager.makeWindow` 工厂建，`NotationApp.init` 注入；同 URL 二开自动聚焦既有窗）。杂交态（侧栏是工作区树、编辑器却是外部文件）从此不可达。要点：
-- **文档小窗是 AppKit 不是 SwiftUI scene**（关键，见决策 #11）：`DocumentWindowManager` 持有每窗的 `NSWindow`（强引用，`isReleasedWhenClosed=false`）+ `DocumentSession` + security scope；`makeWindow` 工厂把 `DocumentWindowView` 塞进 `NSHostingController` 并注入 `store/paywall/entitlement` 三个 environment。窗口标题/dirty 圆点直接设 `NSWindow`（`navigationTitle` 在 hosting controller 里没 scene 可写）。
+- **文档小窗是 AppKit 不是 SwiftUI scene**（关键，见决策 #11）：`DocumentWindowManager` 持有每窗的 `NSWindow`（强引用，`isReleasedWhenClosed=false`）+ `DocumentSession` + security scope；`makeWindow` 工厂把 `DocumentWindowView` 塞进 `NSHostingController` 并注入 `store` environment。窗口标题/dirty 圆点直接设 `NSWindow`（`navigationTitle` 在 hosting controller 里没 scene 可写）。
 - **文件事件走 SwiftUI 正常路由**：`application(_:open:)`（SwiftUI adaptor 转发）→ `openDocument`。不再抢 AE 事件（历史见 #11）。冷启动 pendingURLs 在 store attach 后排空。
 - **scope 所有权转移**：`openDocument` 接收已 START 的 security-scoped URL；workspace 文件立刻释放（workspace grant 已覆盖），外部文件交给窗口注册表、关窗时释放。
 - **文档小窗真关闭**（`DocumentCloseGuard`，`windowShouldClose` 返回 true；与主窗 orderOut 的 `CloseGuard` 是兄弟变体）；`windowWillClose` 摘 registry、cancel autosave、释放 scope。重启后重开走 Recents bookmark。

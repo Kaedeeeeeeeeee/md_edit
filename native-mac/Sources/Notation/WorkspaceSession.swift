@@ -312,7 +312,8 @@ final class WorkspaceSession {
                 trashed.append(url)
                 DebugLog.write("[fileop] trashed \(url.lastPathComponent)")
             } catch {
-                DebugLog.write("[fileop] trash FAILED \(url.lastPathComponent): \(error.localizedDescription)")
+                let ns = error as NSError
+                DebugLog.write("[fileop] trash FAILED \(url.lastPathComponent): \(ns.domain)#\(ns.code)")
                 AppAlerts.present(String(localized: "Failed to move to Trash"), error.localizedDescription)
             }
         }
@@ -334,7 +335,7 @@ final class WorkspaceSession {
             let srcStd = src.standardizedFileURL
             if FilePaths.contains(parent: srcStd, child: destStd) {
                 NSSound.beep()
-                DebugLog.write("[fileop] move refused (cycle): \(srcStd.lastPathComponent) → \(destStd.path)")
+                DebugLog.write("[fileop] move refused (cycle): \(srcStd.lastPathComponent) -> \(destStd.lastPathComponent)")
                 return []
             }
         }
@@ -346,9 +347,10 @@ final class WorkspaceSession {
             do {
                 try FileManager.default.moveItem(at: src, to: dest)
                 moved.append((from: src, to: dest))
-                DebugLog.write("[fileop] move \(src.lastPathComponent) → \(dest.path)")
+                DebugLog.write("[fileop] move \(src.lastPathComponent) -> \(dest.lastPathComponent)")
             } catch {
-                DebugLog.write("[fileop] move FAILED \(src.lastPathComponent): \(error.localizedDescription)")
+                let ns = error as NSError
+                DebugLog.write("[fileop] move FAILED \(src.lastPathComponent): \(ns.domain)#\(ns.code)")
                 AppAlerts.present(String(localized: "Failed to move"), error.localizedDescription)
             }
         }
@@ -369,9 +371,10 @@ final class WorkspaceSession {
             do {
                 try FileManager.default.copyItem(at: src, to: dest)
                 newURLs.append(dest)
-                DebugLog.write("[fileop] copy \(src.lastPathComponent) → \(dest.path)")
+                DebugLog.write("[fileop] copy \(src.lastPathComponent) -> \(dest.lastPathComponent)")
             } catch {
-                DebugLog.write("[fileop] copy FAILED \(src.lastPathComponent): \(error.localizedDescription)")
+                let ns = error as NSError
+                DebugLog.write("[fileop] copy FAILED \(src.lastPathComponent): \(ns.domain)#\(ns.code)")
                 AppAlerts.present(String(localized: "Failed to copy"), error.localizedDescription)
             }
         }
