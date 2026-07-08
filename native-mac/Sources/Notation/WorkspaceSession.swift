@@ -15,6 +15,7 @@ enum MarkdownDocumentTitle {
     private static let maxScanBytes = 64 * 1024
     private static let maxScanCharacters = 64 * 1024
     private static let maxTitleCharacters = 180
+    private static let maxFileStemCharacters = 80
 
     static func title(fromFileAt url: URL) -> String? {
         do {
@@ -37,6 +38,20 @@ enum MarkdownDocumentTitle {
             }
         }
         return nil
+    }
+
+    static func syncedFileName(fromMarkdown markdown: String, fallbackExtension: String) -> String? {
+        guard let title = title(fromMarkdown: markdown),
+              var stem = sanitizedFileStem(fromTitle: title) else {
+            return nil
+        }
+        if stem.count > maxFileStemCharacters {
+            stem = String(stem.prefix(maxFileStemCharacters))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !stem.isEmpty else { return nil }
+        let ext = fallbackExtension.isEmpty ? "md" : fallbackExtension
+        return "\(stem).\(ext)"
     }
 
     private static func normalizedTitleLine(_ rawLine: String) -> String? {
@@ -104,6 +119,27 @@ enum MarkdownDocumentTitle {
             }
         }
         return text
+    }
+
+    private static func sanitizedFileStem(fromTitle title: String) -> String? {
+        let invalidScalars = CharacterSet(charactersIn: "/:")
+            .union(.controlCharacters)
+            .union(.newlines)
+        var stem = ""
+        for scalar in title.unicodeScalars {
+            if invalidScalars.contains(scalar) {
+                stem.append("-")
+            } else {
+                stem.unicodeScalars.append(scalar)
+            }
+        }
+        let trimScalars = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "."))
+        stem = stem
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"-{2,}"#, with: "-", options: .regularExpression)
+            .trimmingCharacters(in: trimScalars)
+        if stem == "." || stem == ".." { return nil }
+        return stem.isEmpty ? nil : stem
     }
 }
 

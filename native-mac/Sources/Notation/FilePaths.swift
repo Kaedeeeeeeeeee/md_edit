@@ -20,8 +20,9 @@ enum FilePaths {
 
     /// Collision-avoiding URL: returns `dir/name` if free, else appends
     /// `" 2"`, `" 3"`, ... preserving the extension.
-    static func uniqueURL(in dir: URL, name: String) -> URL {
+    static func uniqueURL(in dir: URL, name: String, excluding existingURL: URL? = nil) -> URL {
         let base = dir.appendingPathComponent(name)
+        if base.standardizedFileURL == existingURL?.standardizedFileURL { return base }
         if !FileManager.default.fileExists(atPath: base.path) { return base }
         let stem = (name as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension
@@ -29,6 +30,7 @@ enum FilePaths {
             let candidate = dir.appendingPathComponent(
                 ext.isEmpty ? "\(stem) \(i)" : "\(stem) \(i).\(ext)"
             )
+            if candidate.standardizedFileURL == existingURL?.standardizedFileURL { return candidate }
             if !FileManager.default.fileExists(atPath: candidate.path) { return candidate }
         }
         return base

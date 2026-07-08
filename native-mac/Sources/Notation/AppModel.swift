@@ -52,6 +52,9 @@ final class AppModel {
             guard let self, self.workspace.folderURL != nil else { return }
             self.workspace.rebuildFileTree()
         }
+        document.onFileRenamedByTitleSync = { [weak self] oldURL, newURL in
+            self?.translateURL(from: oldURL, to: newURL)
+        }
 
         // Restore the previously-adopted workspace synchronously during init
         // so ContentView's first render sees the final `folderURL` value.

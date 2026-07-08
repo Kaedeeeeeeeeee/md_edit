@@ -23,6 +23,12 @@ final class DocumentSession {
     var currentMarkdown: String = ""
     var isDirty: Bool = false
 
+    var displayTitle: String {
+        MarkdownDocumentTitle.title(fromMarkdown: currentMarkdown)
+            ?? currentFileURL?.deletingPathExtension().lastPathComponent
+            ?? "Untitled"
+    }
+
     /// Monotonically increments every time the editor should re-pull
     /// content from this session (file open, new document, current file
     /// deleted).  Editor-originated edits do NOT bump this — that would
@@ -46,6 +52,11 @@ final class DocumentSession {
     /// Invoked after markdown bytes land on disk (explicit save, autosave,
     /// untitled autosave) so the owner can refresh dependent state.
     @ObservationIgnored var onFileWritten: (URL) -> Void = { _ in }
+
+    /// Invoked when saving a workspace document also renames the file so
+    /// URL-keyed owner state (sidebar selection, clipboard, etc.) can
+    /// follow the move.
+    @ObservationIgnored var onFileRenamedByTitleSync: (URL, URL) -> Void = { _, _ in }
 
     // MARK: - Private state
 
@@ -152,11 +163,12 @@ final class DocumentSession {
         let target = FilePaths.uniqueURL(in: folder, name: name)
         do {
             try currentMarkdown.write(to: target, atomically: true, encoding: .utf8)
-            currentFileURL = target
+            let finalURL = syncFileNameWithDocumentTitleIfNeeded(for: target)
+            currentFileURL = finalURL
             isDirty = false
-            RecentFiles.shared.push(target)
-            onFileWritten(target)
-            DebugLog.write("[autosave] created untitled \(target.lastPathComponent)")
+            RecentFiles.shared.push(finalURL)
+            onFileWritten(finalURL)
+            DebugLog.write("[autosave] created untitled \(finalURL.lastPathComponent)")
         } catch {
             DebugLog.write("[autosave] untitled write failed: \(error.localizedDescription)")
         }
@@ -242,20 +254,52 @@ final class DocumentSession {
         panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
         panel.nameFieldStringValue = currentFileURL?.lastPathComponent ?? "Untitled.md"
         if panel.runModal() == .OK, let url = panel.url {
-            writeMarkdown(to: url)
-            currentFileURL = url
+            currentFileURL = writeMarkdown(to: url) ?? url
             untitledAutosaveName = nil // committed to an explicit filename
         }
     }
 
-    private func writeMarkdown(to url: URL) {
+    @discardableResult
+    private func writeMarkdown(to url: URL) -> URL? {
         do {
             try currentMarkdown.write(to: url, atomically: true, encoding: currentFileEncoding)
+            let finalURL = syncFileNameWithDocumentTitleIfNeeded(for: url)
+            currentFileURL = finalURL
             isDirty = false
-            RecentFiles.shared.push(url)
-            onFileWritten(url)
+            RecentFiles.shared.push(finalURL)
+            onFileWritten(finalURL)
+            return finalURL
         } catch {
             AppAlerts.present(String(localized: "Failed to save"), error.localizedDescription)
+            return nil
+        }
+    }
+
+    private func syncFileNameWithDocumentTitleIfNeeded(for url: URL) -> URL {
+        guard let folder = workspaceRoot(),
+              FilePaths.contains(parent: folder, child: url),
+              let desiredName = MarkdownDocumentTitle.syncedFileName(
+                fromMarkdown: currentMarkdown,
+                fallbackExtension: url.pathExtension
+              ) else {
+            return url
+        }
+
+        let dest = FilePaths.uniqueURL(
+            in: url.deletingLastPathComponent(),
+            name: desiredName,
+            excluding: url
+        )
+        guard dest.standardizedFileURL != url.standardizedFileURL else { return url }
+
+        do {
+            try FileManager.default.moveItem(at: url, to: dest)
+            onFileRenamedByTitleSync(url, dest)
+            DebugLog.write("[title-sync] renamed \(url.lastPathComponent) -> \(dest.lastPathComponent)")
+            return dest
+        } catch {
+            DebugLog.write("[title-sync] rename FAILED \(url.lastPathComponent): \(error.localizedDescription)")
+            return url
         }
     }
 

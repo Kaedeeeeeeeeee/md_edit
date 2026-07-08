@@ -79,7 +79,7 @@ struct ContentView: View {
     }
 
     private var documentTitle: String {
-        let name = store.document.currentFileURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        let name = store.document.displayTitle
         return store.document.isDirty ? "● \(name)" : name
     }
 
@@ -108,4 +108,3 @@ private struct TitleBarScrollEdge: View {
             .ignoresSafeArea(edges: .top)
     }
 }
-
