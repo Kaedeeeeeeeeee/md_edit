@@ -20,7 +20,7 @@ struct AgentCard: View {
         .frame(width: 380)
         .frame(maxHeight: 560)
         .clipShape(.rect(cornerRadius: 20))
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .modifier(AgentCardGlassBackground())
         .overlay(
             RoundedRectangle(cornerRadius: 20)
                 .strokeBorder(Color.white.opacity(0.16), lineWidth: 0.5)
@@ -213,5 +213,15 @@ struct AgentCard: View {
         controller.isStreaming
             && msg.role == .assistant
             && msg.id == controller.messages.last?.id
+    }
+}
+
+private struct AgentCardGlassBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.glassEffect(.regular, in: .rect(cornerRadius: 20))
+        } else {
+            content.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
     }
 }

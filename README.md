@@ -11,7 +11,7 @@ one-time purchase.**
 - Block-level WYSIWYG editing (slash menu, drag handles, code / math / task blocks)
 - Workspace-first sidebar like an IDE; single-file open as fallback
 - Swift + SwiftUI shell with an embedded BlockNote editor in WKWebView
-- Real macOS 26 Liquid Glass — public APIs only, App Store eligible
+- macOS 15+ support, with Liquid Glass enabled on macOS 26 when available
 - AI features included after download (Ask AI, Research, Image Generation) — bring your own API key
 
 ## Build

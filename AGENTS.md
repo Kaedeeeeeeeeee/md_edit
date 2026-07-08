@@ -4,11 +4,11 @@
 
 ## 这是什么
 
-**Notation** 是一款 **macOS 26+ 原生** Markdown 编辑器，目标是把 Notion 那种**块级所见即所得**的编辑体验做成可以上 **App Store** 的 Mac 原生应用。
+**Notation** 是一款 **macOS 15+ 原生** Markdown 编辑器，目标是把 Notion 那种**块级所见即所得**的编辑体验做成可以上 **App Store** 的 Mac 原生应用。
 
 - 用户拥有的是磁盘上**真实的 `.md` 文件**，不是某种私有数据库
 - 编辑器内核是 **BlockNote（基于 ProseMirror）**，提供 `/` 菜单、块拖拽、表格、代码块、任务列表、KaTeX 公式块等
-- 外壳是 **Swift + SwiftUI**，享受 macOS 26 Liquid Glass、`NavigationSplitView`、原生菜单栏等
+- 外壳是 **Swift + SwiftUI**，在 macOS 26+ 启用 Liquid Glass，macOS 15-25 使用原生 material fallback，并保留 `NavigationSplitView`、原生菜单栏等
 
 ## 定位
 
@@ -25,10 +25,10 @@
 ## 技术栈
 
 **外壳（native shell）**
-- Swift 6.0 + SwiftUI（macOS 26 SDK，Xcode 26.4+）
+- Swift 6.0 + SwiftUI（macOS 26 SDK / Xcode 26+ 构建，deployment target macOS 15.0）
 - XcodeGen 管理 `.xcodeproj`（`project.yml` 是单一来源）
 - App Sandbox + `network.client` entitlement（WKWebView 在沙盒下必需）
-- 真 Liquid Glass：`NavigationSplitView` 默认开 + 顶部 toolbar 渐变蒙版
+- Liquid Glass：macOS 26+ 启用；macOS 15-25 用 material fallback；`NavigationSplitView` 默认开 + 顶部 toolbar 渐变蒙版
 - Apple Developer Team ID: `Y4FV6WUU4V`
 
 **编辑器（embedded web）**
@@ -97,7 +97,7 @@ md_edit/                              # 项目根（git remote: Kaedeeeeeeeeee/m
 
 ### 1. 为什么从 Tauri 切到 Swift + WKWebView
 
-最初是 Tauri，10 MB 包体。后来用户决定走 App Store，Tauri 当前栈用到的 `tauri-plugin-liquid-glass` / `macos-private-api` / `window-vibrancy` 私有 API 全被 App Store 否决。Swift + WKWebView 混合是唯一既能用 macOS 26 真 Liquid Glass、又能上架的路。
+最初是 Tauri，10 MB 包体。后来用户决定走 App Store，Tauri 当前栈用到的 `tauri-plugin-liquid-glass` / `macos-private-api` / `window-vibrancy` 私有 API 全被 App Store 否决。Swift + WKWebView 混合是唯一既能在 macOS 26+ 用公开 API 启用 Liquid Glass、又能在 macOS 15+ 上架覆盖更多用户的路。
 
 ### 2. 为什么编辑器是 web 而不是 Swift 原生
 

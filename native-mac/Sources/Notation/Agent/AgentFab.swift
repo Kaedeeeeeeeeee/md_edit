@@ -20,7 +20,20 @@ struct AgentFab: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: Circle())
+        .modifier(FloatingGlassButtonStyle())
         .help(isOpen ? "Close AI assistant (⌘⇧J)" : "Open AI assistant (⌘⇧J)")
+    }
+}
+
+private struct FloatingGlassButtonStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            content
+                .background(.regularMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
+        }
     }
 }

@@ -1,0 +1,151 @@
+name: Notation macOS App Store
+
+on:
+  workflow_dispatch:
+
+env:
+  ASC_API_ISSUER_ID: d02f94a4-e730-4ff0-bd96-5a48c432751a
+  ASC_API_KEY_ID: "99STZKX674"
+  BUNDLE_ID: com.shifengzhang.notation
+  TEAM_ID: Y4FV6WUU4V
+  PROFILE_NAME: Notation Mac App Store
+
+jobs:
+  upload:
+    name: Build and upload build 2
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select stable Xcode 26
+        run: |
+          set -euo pipefail
+          if [ -d "/Applications/Xcode_26.3.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_26.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_26.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.1.app/Contents/Developer
+          else
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          fi
+          xcodebuild -version
+          XCODE_MAJOR="$(xcodebuild -version | awk '/Xcode/ { split($2, v, "."); print v[1] }')"
+          if [ "$XCODE_MAJOR" -lt 26 ]; then
+            echo "Xcode 26 or newer is required for App Store Connect uploads."
+            exit 1
+          fi
+          xcodebuild -showsdks | grep macosx
+
+      - name: Install build tools
+        run: |
+          set -euo pipefail
+          brew update
+          brew install xcodegen
+          corepack enable
+
+      - name: Import signing assets
+        env:
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+          BUILD_KEYCHAIN_PASSWORD: ${{ secrets.BUILD_KEYCHAIN_PASSWORD }}
+          MACOS_APPSTORE_CERTIFICATES_P12_BASE64: ${{ secrets.MACOS_APPSTORE_CERTIFICATES_P12_BASE64 }}
+          MACOS_APPSTORE_CERTIFICATES_P12_PASSWORD: ${{ secrets.MACOS_APPSTORE_CERTIFICATES_P12_PASSWORD }}
+          NOTATION_MAS_PROVISION_PROFILE_BASE64: ${{ secrets.NOTATION_MAS_PROVISION_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          CERT_PATH="$RUNNER_TEMP/notation-appstore-certs.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/notation-signing.keychain-db"
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          PROFILE_PATH="$PROFILE_DIR/Notation_MAS_LDK8XH35GX.provisionprofile"
+          ASC_KEY_DIR="$HOME/.appstoreconnect/private_keys"
+          ASC_KEY_PATH="$ASC_KEY_DIR/AuthKey_${ASC_API_KEY_ID}.p8"
+
+          echo "$MACOS_APPSTORE_CERTIFICATES_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          mkdir -p "$PROFILE_DIR" "$ASC_KEY_DIR"
+          echo "$NOTATION_MAS_PROVISION_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+          echo "$ASC_API_KEY_BASE64" | base64 --decode > "$ASC_KEY_PATH"
+          chmod 600 "$ASC_KEY_PATH"
+
+          security create-keychain -p "$BUILD_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$BUILD_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$MACOS_APPSTORE_CERTIFICATES_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign -T /usr/bin/productbuild -T /usr/bin/security
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$BUILD_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Build bundled editor
+        working-directory: native-mac/web
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Generate Xcode project
+        working-directory: native-mac
+        run: xcodegen generate
+
+      - name: Archive
+        working-directory: native-mac
+        run: |
+          set -euo pipefail
+          rm -rf build/ci
+          xcodebuild \
+            -project Notation.xcodeproj \
+            -scheme Notation \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath build/ci/Notation-1.0-build-2.xcarchive \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            archive
+
+      - name: Export App Store package
+        working-directory: native-mac
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/ci/Notation-1.0-build-2.xcarchive \
+            -exportPath build/ci/export \
+            -exportOptionsPlist ExportOptions.appstore.plist
+          pkgutil --check-signature build/ci/export/Notation.pkg
+          plutil -p build/ci/export/DistributionSummary.plist
+
+      - name: Validate package with App Store Connect
+        working-directory: native-mac
+        run: |
+          set -euo pipefail
+          xcrun altool \
+            --validate-app \
+            -f build/ci/export/Notation.pkg \
+            --api-key "$ASC_API_KEY_ID" \
+            --api-issuer "$ASC_API_ISSUER_ID"
+
+      - name: Upload package to App Store Connect
+        working-directory: native-mac
+        run: |
+          set -euo pipefail
+          xcrun altool \
+            --upload-app \
+            -f build/ci/export/Notation.pkg \
+            --api-key "$ASC_API_KEY_ID" \
+            --api-issuer "$ASC_API_ISSUER_ID"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: notation-appstore-build-2
+          path: |
+            native-mac/build/ci/export/Notation.pkg
+            native-mac/build/ci/export/DistributionSummary.plist
+            native-mac/build/ci/export/Packaging.log
+          if-no-files-found: ignore

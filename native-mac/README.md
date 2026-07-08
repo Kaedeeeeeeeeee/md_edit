@@ -1,7 +1,8 @@
 # Notation — native-mac
 
-Swift + SwiftUI hybrid build of Notation, targeting **macOS 26+** with
-real Liquid Glass UI and the App Store as a distribution target.
+Swift + SwiftUI hybrid build of Notation, targeting **macOS 15+** with
+Liquid Glass enabled on macOS 26 when available and the App Store as a
+distribution target.
 
 The editor itself (BlockNote / ProseMirror) still runs inside a `WKWebView`,
 but everything else — sidebar, toolbar, menu bar, settings, file ops — is
