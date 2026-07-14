@@ -205,7 +205,8 @@ Review notes should mention:
 - Include a dedicated, review-only AI provider API key and exact test steps. Never ask App Review to supply its own key.
 - No account is required.
 - User files are local `.md` files selected through macOS file/folder pickers.
-- China mainland is excluded from App Availability because the current build exposes third-party generative-AI integrations.
+- Clarify that "OpenAI / Compatible" describes an interoperable wire format, not bundled ChatGPT/OpenAI access: Notation has no developer-supplied AI key, credits, proxy, or AI backend, and users supply the endpoint, model, and credentials.
+- For the current review, keep China mainland included and demonstrate the same submitted binary with a dedicated DeepSeek review key. The review note must include the exact DeepSeek base URL and model as well as the Ask AI test path.
 - Explain that BlockNote is used as the open-source editor engine, while Notation's native workspace, disk-file lifecycle, sandbox bookmarks, source mode, math round-trip, external-change handling, and macOS window/menu behavior are product-specific implementations.
 
 Use `APP_REVIEW_RESPONSE.md` as the source for the final reply and review notes.
