@@ -44,7 +44,8 @@ Paid app setup:
 
 - Confirm the Paid Apps Agreement is active for Team `Y4FV6WUU4V`
 - Set the app as a paid app, not a free app
-- Use China CNY ¥68 as the price anchor; choose the closest current Apple price point in App Store Connect
+- Keep the existing one-time price schedule; storefronts display Apple's local equivalent
+- Exclude China mainland from App Availability while the app contains generative-AI provider integrations that are not licensed there
 - Do not create in-app purchase products
 - Do not configure subscriptions, introductory offers, trials, promo offers, or consumables
 
@@ -147,6 +148,7 @@ Copy guardrails:
 - Say AI features are included in the app but require the user's own API key
 - Do not say free, Pro, upgrade, restore purchases, subscription, trial, or in-app purchase
 - Avoid implying Notation provides hosted AI credits or a server-side AI account
+- Describe Notation on its own merits; do not position it as a clone or replacement for a named competitor
 
 Keywords example:
 
@@ -200,6 +202,10 @@ Privacy/logging:
 Review notes should mention:
 
 - Notation is a paid upfront Mac app with no IAP.
-- AI features require the reviewer's own Anthropic or OpenAI-compatible API key.
+- Include a dedicated, review-only AI provider API key and exact test steps. Never ask App Review to supply its own key.
 - No account is required.
 - User files are local `.md` files selected through macOS file/folder pickers.
+- China mainland is excluded from App Availability because the current build exposes third-party generative-AI integrations.
+- Explain that BlockNote is used as the open-source editor engine, while Notation's native workspace, disk-file lifecycle, sandbox bookmarks, source mode, math round-trip, external-change handling, and macOS window/menu behavior are product-specific implementations.
+
+Use `APP_REVIEW_RESPONSE.md` as the source for the final reply and review notes.

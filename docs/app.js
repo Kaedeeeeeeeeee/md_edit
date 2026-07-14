@@ -49,7 +49,7 @@ function initFooterYear() {
 //
 // One self-playing animation that cycles through three content "styles" —
 // office, technical, fiction — to signal Notation's audience range, while
-// punctuating each cycle with two Notion-style feature demonstrations:
+// punctuating each cycle with two block-editing feature demonstrations:
 //   - a slash menu pop-up showing block insertion
 //   - a + drag handle briefly appearing beside the just-typed block
 // ---------------------------------------------------------------------------

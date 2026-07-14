@@ -1,8 +1,8 @@
 # Notation
 
-A Notion-style block-level Markdown editor for macOS. Real `.md` files on
-disk, not a private database. **Coming to the Mac App Store as a paid,
-one-time purchase.**
+A native macOS Markdown workspace with block-level WYSIWYG editing. It works
+directly with real `.md` files on disk, not a private database. **Coming to
+the Mac App Store as a paid, one-time purchase.**
 
 → Landing page: <https://kaedeeeeeeeeee.github.io/md_edit/>
 
